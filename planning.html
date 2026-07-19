@@ -51,6 +51,7 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 #wg th,#wg td{border-bottom:1px solid var(--lijn);border-right:1px solid #eef1ef;padding:0;font-size:11px}
 #wg th{background:#f7f9f8;padding:4px 6px;font-weight:600;color:var(--grijs);text-align:center;white-space:nowrap}
 #wg th.wknu{background:var(--groen);color:#fff}
+#wg th.wkhuidig{border-bottom:3px solid var(--groen)}
 #wg td.naam,#wg th.naam{position:sticky;left:0;background:var(--kaart);text-align:left;padding:5px 8px;font-size:12px;white-space:nowrap;z-index:2;border-right:2px solid var(--lijn);max-width:130px;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 #wg tr.blokkop td{background:#eef4f1;font-weight:600;color:var(--groen);padding:4px 8px;font-size:11px}
 #wg tr.lockop td{background:var(--groen);color:#fff;font-weight:700;padding:5px 8px;font-size:12px}
@@ -520,13 +521,13 @@ function rWeek(app){
   const iwA=isoWeek(weken[0]), iwB=isoWeek(weken[weken.length-1]);
   let h='<div class="dagnav"><button id="wk-vorig">‹</button><div class="datum">'+(S.wkVenster>1?('wk '+iwA.week+' – wk '+iwB.week):('wk '+iwA.week))+' <span class="stil">vanaf '+fmt(weken[0])+'</span></div><button id="wk-volgend">›</button><button id="wk-nu" style="font-size:12px">deze week</button></div>';
   h+='<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
-    +'<label class="stil">weken in beeld:</label><input type="range" id="wk-slider" min="1" max="13" step="1" value="'+S.wkVenster+'" style="width:140px;accent-color:var(--groen)"><b id="wk-slider-label" style="min-width:18px">'+S.wkVenster+'</b>'
+    +'<label class="stil">weken in beeld:</label><button class="stap" id="wk-min">−</button><input type="range" id="wk-slider" min="1" max="13" step="1" value="'+S.wkVenster+'" style="width:120px;accent-color:var(--groen)"><button class="stap" id="wk-plus">+</button><b id="wk-slider-label" style="min-width:18px">'+S.wkVenster+'</b>'
     +'<button class="knop licht klein" id="wk-filter">🔍 Filter afdelingen</button>'
     +(verborgen.size?'<span class="stil">'+verborgen.size+' verborgen</span><button class="knop klein" id="wk-filter-wis">alles tonen</button>':'')
     +'</div>';
   h+='<div id="wg"><table'+(breed?' style="width:100%"':'')+'><tr class="kop"><th class="naam">Afdeling</th>';
   for(const w of weken){ const iw=isoWeek(w);
-    h+='<th data-week="'+iso(w)+'" title="klik om deze week vooraan te zetten" class="'+(w.getTime()===nuMa.getTime()?'wknu':'')+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span><br><span class="dagknop" data-weekdag="'+iso(w)+'" title="dagplanning van deze week">dagen ›</span></th>'; }
+    h+='<th data-week="'+iso(w)+'" title="klik om deze week vooraan te zetten" class="'+(w.getTime()===start.getTime()?'wknu':(w.getTime()===nuMa.getTime()?'wkhuidig':''))+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span><br><span class="dagknop" data-weekdag="'+iso(w)+'" title="dagplanning van deze week">dagen ›</span></th>'; }
   h+='</tr>';
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     const locKey='loc-'+loc.id;
@@ -585,6 +586,9 @@ function rWeek(app){
   const sl=document.getElementById('wk-slider');
   sl.oninput=()=>{document.getElementById('wk-slider-label').textContent=sl.value;};
   sl.onchange=()=>{S.wkVenster=+sl.value;localStorage.setItem('rp_venster',S.wkVenster);render();};
+  const zetVenster=n=>{S.wkVenster=Math.min(13,Math.max(1,n));localStorage.setItem('rp_venster',S.wkVenster);render();};
+  document.getElementById('wk-min').onclick=()=>zetVenster(S.wkVenster-1);
+  document.getElementById('wk-plus').onclick=()=>zetVenster(S.wkVenster+1);
   app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.view='afdelingen';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
   app.querySelectorAll('th[data-week]').forEach(el=>el.onclick=()=>{S.wkStart=el.dataset.week;render();});
