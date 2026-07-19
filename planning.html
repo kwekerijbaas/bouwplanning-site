@@ -408,7 +408,7 @@ function render(){
   tabs.innerHTML=TABS.map(([k,t])=>{
     let n=0;
     if(k==='inbox') n=openVoorstellen().length;
-    else if(k==='taken'&&S.data) n=(S.data.taken||[]).filter(x=>x.status==='open'&&x.deadline&&x.deadline.slice(0,10)<vandaagISO()).length;
+    else if(k==='taken'&&S.data) n=(S.data.taken||[]).filter(x=>x.status!=='klaar'&&x.deadline&&x.deadline.slice(0,10)<vandaagISO()).length;
     const act=S.view===k||(k==='week'&&S.view==='weekdetail');
     return '<button data-v="'+k+'" class="'+(act?'actief':'')+'">'+t+(n?'<span class="bol">'+n+'</span>':'')+'</button>';
   }).join('');
@@ -458,12 +458,12 @@ function rVandaag(app){
   }
   if(!iets) h+='<div class="leeg">Geen geplande activiteiten op deze dag. Plan ze via het tabblad Afdelingen.</div>';
   h+='</div>';
-  const dagTaken=(S.data.taken||[]).filter(t=>t.status==='open'&&t.deadline&&(t.deadline.slice(0,10)===S.dag||(S.dag===vandaagISO()&&t.deadline.slice(0,10)<S.dag))&&(!scopeAfdIds||scopeAfdIds.has(t.afdeling_id)));
+  const dagTaken=(S.data.taken||[]).filter(t=>t.status!=='klaar'&&t.deadline&&(t.deadline.slice(0,10)===S.dag||(S.dag===vandaagISO()&&t.deadline.slice(0,10)<S.dag))&&(!scopeAfdIds||scopeAfdIds.has(t.afdeling_id)));
   if(dagTaken.length){
     h+='<div class="kaart"><h2>✅ Taken met deadline</h2>';
     for(const t of dagTaken){
       const oud=t.deadline.slice(0,10)<S.dag;
-      h+='<div class="regel"><button class="statusknop todo" data-tklaar="'+t.id+'">klaar?</button>'
+      h+='<div class="regel">'+taakStatusKnop(t)
         +'<span style="flex:1"><b>'+esc(t.omschrijving)+'</b><br><span class="stil'+(oud?' deadline-oud':'')+'">'+fmt(pd(t.deadline))+(oud?' ⚠ over tijd':'')+'</span></span></div>';
     }
     h+='</div>';
@@ -1076,7 +1076,7 @@ function rLeveringen(app){
 function rTaken(app){
   const vandaag=vandaagISO();
   const taken=(S.data.taken||[]);
-  const open=taken.filter(t=>t.status==='open').sort((a,b)=>String(a.deadline||'9999').localeCompare(String(b.deadline||'9999')));
+  const open=taken.filter(t=>t.status!=='klaar').sort((a,b)=>String(a.deadline||'9999').localeCompare(String(b.deadline||'9999')));
   const klaarAlle=taken.filter(t=>t.status==='klaar');
   const afdVan=id=>{ const a=S.data.afdelingen.find(x=>x.id===id); return a?afdNaam(a):null; };
   let h='<div class="kaart"><h2>➕ Nieuwe taak</h2>'
@@ -1097,7 +1097,7 @@ function rTaken(app){
   for(const t of zicht){
     const fotos=(S.data.fotos||[]).filter(f=>f.taak_id===t.id);
     const oud=t.deadline&&t.deadline.slice(0,10)<vandaag;
-    h+='<div class="regel" style="align-items:flex-start"><button class="statusknop todo" data-tklaar="'+t.id+'">klaar?</button>'
+    h+='<div class="regel" style="align-items:flex-start">'+taakStatusKnop(t)
       +'<span style="flex:1"><b>'+esc(t.omschrijving)+'</b><br><span class="stil">'
       +(t.afdeling_id?esc(afdVan(t.afdeling_id)||'')+' · ':'')
       +(t.bedrijf_id?bedrijfDot(bedrijfNaam(t.bedrijf_id))+esc(bedrijfNaam(t.bedrijf_id))+' · ':'')
@@ -1127,6 +1127,11 @@ function rTaken(app){
   };
   koppelTaken(app);
   koppelFotoDel(app);
+}
+function taakStatusKnop(t){
+  const lbl={open:'te doen',bezig:'bezig',klaar:'✓ klaar'}[t.status]||t.status;
+  const cls={open:'todo',bezig:'bezig',klaar:'klaar'}[t.status]||'todo';
+  return '<button class="statusknop '+cls+'" data-tklaar="'+t.id+'">'+lbl+'</button>';
 }
 function taakBewerken(taakId){
   const sh=document.getElementById('sheet');
@@ -1172,7 +1177,8 @@ function koppelTaken(root){
   root.querySelectorAll('button[data-tbewerk]').forEach(b=>b.onclick=()=>taakBewerken(+b.dataset.tbewerk));
   root.querySelectorAll('button[data-tklaar]').forEach(b=>b.onclick=()=>{
     const t=(S.data.taken||[]).find(x=>x.id===+b.dataset.tklaar);
-    doe({action:'taak_update',id:t.id,fields:{status:'klaar'}}, 'Taak afgerond: '+t.omschrijving);
+    const volg={open:'bezig',bezig:'klaar'}[t.status]||'klaar';
+    doe({action:'taak_update',id:t.id,fields:{status:volg}}, 'Taak "'+t.omschrijving+'" → '+(volg==='klaar'?'afgerond':volg));
   });
   root.querySelectorAll('button[data-theropen]').forEach(b=>b.onclick=()=>{
     const t=(S.data.taken||[]).find(x=>x.id===+b.dataset.theropen);
@@ -1233,7 +1239,7 @@ function rVoortgang(app){
   for(const naam of Object.keys(perCat)) if(!actCats().some(c=>c.naam===naam))
     h+=rij(naam,perCat[naam],'<span class="chip" style="background:#98a2a0;width:10px;height:18px;padding:0;border-radius:4px"></span>');
   h+='</div>';
-  const openTaken=(S.data.taken||[]).filter(t=>t.status==='open');
+  const openTaken=(S.data.taken||[]).filter(t=>t.status!=='klaar');
   h+='<div class="kaart"><h2>🏢 Per bedrijf</h2>';
   for(const naam of Object.keys(perBedrijf).sort()){
     h+=rij(naam,perBedrijf[naam],'<i class="ldot" style="background:'+levKleur(naam)+'"></i>');
