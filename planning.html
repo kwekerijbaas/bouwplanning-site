@@ -509,7 +509,7 @@ function koppelLev(root){
 function rWeek(app){
   const nuMa=maandagVan(pd(vandaagISO()));
   if(!S.wkStart) S.wkStart=iso(nuMa);
-  if(!S.wkVenster){ const v=+(localStorage.getItem('rp_venster')||2); S.wkVenster=(v===6||v===13)?v:2; }
+  if(!S.wkVenster){ const v=+(localStorage.getItem('rp_venster')||2); S.wkVenster=(v>=1&&v<=13)?v:2; }
   const start=pd(S.wkStart);
   const weken=[]; for(let i=0;i<S.wkVenster;i++){ const d=new Date(start); d.setUTCDate(d.getUTCDate()+7*i); weken.push(d); }
   const breed=S.wkVenster<=4;
@@ -519,14 +519,14 @@ function rWeek(app){
   for(const afd of S.data.afdelingen.filter(a=>a.actief&&!verborgen.has(a.id))) plans[afd.id]=planAfdeling(afd);
   const iwA=isoWeek(weken[0]), iwB=isoWeek(weken[weken.length-1]);
   let h='<div class="dagnav"><button id="wk-vorig">‹</button><div class="datum">'+(S.wkVenster>1?('wk '+iwA.week+' – wk '+iwB.week):('wk '+iwA.week))+' <span class="stil">vanaf '+fmt(weken[0])+'</span></div><button id="wk-volgend">›</button><button id="wk-nu" style="font-size:12px">deze week</button></div>';
-  h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
-    +'<span class="keuze">'+[2,6,13].map(n=>'<button data-venster="'+n+'" class="'+(S.wkVenster===n?'aan':'')+'">'+n+' weken</button>').join('')+'</span>'
+  h+='<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+    +'<label class="stil">weken in beeld:</label><input type="range" id="wk-slider" min="1" max="13" step="1" value="'+S.wkVenster+'" style="width:140px;accent-color:var(--groen)"><b id="wk-slider-label" style="min-width:18px">'+S.wkVenster+'</b>'
     +'<button class="knop licht klein" id="wk-filter">🔍 Filter afdelingen</button>'
     +(verborgen.size?'<span class="stil">'+verborgen.size+' verborgen</span><button class="knop klein" id="wk-filter-wis">alles tonen</button>':'')
     +'</div>';
   h+='<div id="wg"><table'+(breed?' style="width:100%"':'')+'><tr class="kop"><th class="naam">Afdeling</th>';
   for(const w of weken){ const iw=isoWeek(w);
-    h+='<th data-week="'+iso(w)+'" title="klik voor dagoverzicht van deze week" class="'+(w.getTime()===nuMa.getTime()?'wknu':'')+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span></th>'; }
+    h+='<th data-week="'+iso(w)+'" title="klik om deze week vooraan te zetten" class="'+(w.getTime()===nuMa.getTime()?'wknu':'')+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span><br><span class="dagknop" data-weekdag="'+iso(w)+'" title="dagplanning van deze week">dagen ›</span></th>'; }
   h+='</tr>';
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     const locKey='loc-'+loc.id;
@@ -582,10 +582,13 @@ function rWeek(app){
   document.getElementById('wk-vorig').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()-7*S.wkVenster);S.wkStart=iso(d);render();};
   document.getElementById('wk-volgend').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()+7*S.wkVenster);S.wkStart=iso(d);render();};
   document.getElementById('wk-nu').onclick=()=>{S.wkStart=iso(maandagVan(pd(vandaagISO())));render();};
-  app.querySelectorAll('button[data-venster]').forEach(b=>b.onclick=()=>{S.wkVenster=+b.dataset.venster;localStorage.setItem('rp_venster',S.wkVenster);render();});
+  const sl=document.getElementById('wk-slider');
+  sl.oninput=()=>{document.getElementById('wk-slider-label').textContent=sl.value;};
+  sl.onchange=()=>{S.wkVenster=+sl.value;localStorage.setItem('rp_venster',S.wkVenster);render();};
   app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.view='afdelingen';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
-  app.querySelectorAll('th[data-week]').forEach(el=>el.onclick=()=>{S.weekStart=el.dataset.week;S.weekBlok=null;S.view='weekdetail';render();window.scrollTo(0,0);});
+  app.querySelectorAll('th[data-week]').forEach(el=>el.onclick=()=>{S.wkStart=el.dataset.week;render();});
+  app.querySelectorAll('[data-weekdag]').forEach(el=>el.onclick=e=>{e.stopPropagation();S.weekStart=el.dataset.weekdag;S.weekBlok=null;S.view='weekdetail';render();window.scrollTo(0,0);});
   app.querySelectorAll('button[data-blokdag]').forEach(b=>b.onclick=()=>{
     S.weekBlok=+b.dataset.blokdag;
     S.weekStart=iso(maandagVan(pd(vandaagISO())));
