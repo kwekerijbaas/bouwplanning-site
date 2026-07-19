@@ -554,11 +554,12 @@ function koppelLev(root){
 function rWeek(app){
   const nuMa=maandagVan(pd(vandaagISO()));
   if(!S.wkStart) S.wkStart=iso(nuMa);
-  if(!S.wkVenster){ const v=+(localStorage.getItem('rp_venster')||2); S.wkVenster=(v>=1&&v<=13)?v:2; }
+  if(!S.wkVenster){ const v=+(localStorage.getItem('rp_venster3')||3); S.wkVenster=(v>=1&&v<=13)?v:3; }
   if(S.kolBreedte==null){ const kb=+(localStorage.getItem('rp_kolbreedte')||0); S.kolBreedte=(kb>=120&&kb<=500)?kb:0; }
-  const start=pd(S.wkStart);
+  const sel=pd(S.wkStart);
+  const offset=Math.floor((S.wkVenster-1)/2);
+  const start=new Date(sel); start.setUTCDate(start.getUTCDate()-7*offset);
   const weken=[]; for(let i=0;i<S.wkVenster;i++){ const d=new Date(start); d.setUTCDate(d.getUTCDate()+7*i); weken.push(d); }
-  const breed=S.wkVenster<=4;
   const dicht=dichtSet();
   const verborgen=filterSet();
   const plans={};
@@ -570,10 +571,11 @@ function rWeek(app){
     +'<button class="knop licht klein" id="wk-filter">🔍 Filter afdelingen</button>'
     +(verborgen.size?'<span class="stil">'+verborgen.size+' verborgen</span><button class="knop klein" id="wk-filter-wis">alles tonen</button>':'')
     +'</div>';
-  const thStijl=(breed&&S.kolBreedte)?' style="min-width:'+S.kolBreedte+'px"':'';
-  h+='<div id="wg"><table'+(breed&&!S.kolBreedte?' style="width:100%"':'')+'><tr class="kop"><th class="naam">Afdeling</th>';
+  h+='<div id="wg"><table><tr class="kop"><th class="naam">Afdeling</th>';
   for(const w of weken){ const iw=isoWeek(w);
-    h+='<th data-week="'+iso(w)+'" title="klik om deze week vooraan te zetten"'+thStijl+' class="'+(w.getTime()===start.getTime()?'wknu':(w.getTime()===nuMa.getTime()?'wkhuidig':''))+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span><br><span class="dagknop" data-weekdag="'+iso(w)+'" title="dagplanning van deze week">dagen ›</span>'+(breed?'<span class="kolgreep" title="sleep om de kolombreedte aan te passen; dubbelklik = automatisch"></span>':'')+'</th>'; }
+    const isSel=w.getTime()===sel.getTime();
+    const thStijl=isSel?' style="min-width:'+(S.kolBreedte||260)+'px"':' style="min-width:64px"';
+    h+='<th data-week="'+iso(w)+'" title="klik om deze week te kiezen (komt in het midden)"'+thStijl+' class="'+(isSel?'wknu':(w.getTime()===nuMa.getTime()?'wkhuidig':''))+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span><br><span class="dagknop" data-weekdag="'+iso(w)+'" title="dagplanning van deze week">dagen ›</span>'+(isSel?'<span class="kolgreep" title="sleep om de kolombreedte aan te passen; dubbelklik = automatisch"></span>':'')+'</th>'; }
   h+='</tr>';
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     const locKey='loc-'+loc.id;
@@ -597,7 +599,7 @@ function rWeek(app){
           const levsWeek=S.data.leveringen.filter(l=>{ if(!l.datum)return false; const d=pd(l.datum);
             return d>=w&&d<=we&&levHoortBij(l,afd); });
           let segs='';
-          if(breed){
+          if(w.getTime()===sel.getTime()){
             for(const r of plans[afd.id]){
               if(r.start&&r.eind&&r.start<=we&&r.eind>=w&&r.a.status!=='nvt'){
                 const b=bedrijfVan(afd,r.a);
@@ -626,13 +628,13 @@ function rWeek(app){
   h+='<div class="legenda">'+actCats().map(c=>'<span><i style="background:'+c.kleur+'"></i>'+esc(c.naam)+'</span>').join('')
     +'<span><i style="background:var(--rood);border-radius:50%"></i>levering verwacht</span><span><i style="background:var(--groen-licht);border-radius:50%"></i>levering binnen</span></div>';
   app.innerHTML=h;
-  document.getElementById('wk-vorig').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()-7*S.wkVenster);S.wkStart=iso(d);render();};
-  document.getElementById('wk-volgend').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()+7*S.wkVenster);S.wkStart=iso(d);render();};
+  document.getElementById('wk-vorig').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()-7);S.wkStart=iso(d);render();};
+  document.getElementById('wk-volgend').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()+7);S.wkStart=iso(d);render();};
   document.getElementById('wk-nu').onclick=()=>{S.wkStart=iso(maandagVan(pd(vandaagISO())));render();};
   const sl=document.getElementById('wk-slider');
   sl.oninput=()=>{document.getElementById('wk-slider-label').textContent=sl.value;};
-  sl.onchange=()=>{S.wkVenster=+sl.value;localStorage.setItem('rp_venster',S.wkVenster);render();};
-  const zetVenster=n=>{S.wkVenster=Math.min(13,Math.max(1,n));localStorage.setItem('rp_venster',S.wkVenster);render();};
+  sl.onchange=()=>{S.wkVenster=+sl.value;localStorage.setItem('rp_venster3',S.wkVenster);render();};
+  const zetVenster=n=>{S.wkVenster=Math.min(13,Math.max(1,n));localStorage.setItem('rp_venster3',S.wkVenster);render();};
   document.getElementById('wk-min').onclick=()=>zetVenster(S.wkVenster-1);
   document.getElementById('wk-plus').onclick=()=>zetVenster(S.wkVenster+1);
   app.querySelectorAll('.kolgreep').forEach(g=>{
@@ -642,7 +644,7 @@ function rWeek(app){
       e.preventDefault(); e.stopPropagation();
       const startX=e.clientX;
       const startB=g.parentElement.getBoundingClientRect().width;
-      const alleTh=Array.from(document.querySelectorAll('#wg th[data-week]'));
+      const alleTh=Array.from(document.querySelectorAll('#wg th.wknu'));
       const beweeg=ev=>{
         const b=Math.min(500,Math.max(120,Math.round(startB+(ev.clientX-startX))));
         alleTh.forEach(t=>{t.style.minWidth=b+'px';t.style.width=b+'px';});
