@@ -1103,6 +1103,7 @@ function rTaken(app){
       +(t.bedrijf_id?bedrijfDot(bedrijfNaam(t.bedrijf_id))+esc(bedrijfNaam(t.bedrijf_id))+' · ':'')
       +(t.deadline?'<span class="'+(oud?'deadline-oud':'')+'">'+fmt(pd(t.deadline))+(oud?' ⚠':'')+'</span>':'geen deadline')
       +'</span>'+fotoThumbs(fotos,true)+'</span>'
+      +'<button class="pijl" data-tbewerk="'+t.id+'" title="bewerken">✎</button>'
       +'<button class="pijl" data-tfoto="'+t.id+'" title="foto toevoegen">📷</button>'
       +'<button class="pijl" data-tdel="'+t.id+'" title="verwijderen">🗑</button></div>';
   }
@@ -1127,7 +1128,48 @@ function rTaken(app){
   koppelTaken(app);
   koppelFotoDel(app);
 }
+function taakBewerken(taakId){
+  const sh=document.getElementById('sheet');
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';render();};
+  const maak=()=>{
+    const t=(S.data.taken||[]).find(x=>x.id===taakId);
+    if(!t){ dichtFn(); return; }
+    const afdRij=t.afdeling_id?S.data.afdelingen.find(x=>x.id===t.afdeling_id):null;
+    let x='<div class="sheetkaart"><div class="sheettitel">✎ Taak bewerken</div>'
+      +'<input type="text" id="tb-oms" value="'+esc(t.omschrijving)+'" style="width:100%">'
+      +'<div class="sheetrij">'
+      +'<button class="knop licht klein" id="tb-afd">'+(afdRij?'📍 '+esc(afdNaam(afdRij)):'📍 afdeling…')+'</button>'
+      +'<button class="knop licht klein" id="tb-bedrijf">'+(t.bedrijf_id?bedrijfDot(bedrijfNaam(t.bedrijf_id)||'')+esc(bedrijfNaam(t.bedrijf_id)||''):'🏢 bedrijf…')+'</button>'
+      +'<label>deadline</label><input type="date" id="tb-deadline" value="'+(t.deadline?t.deadline.slice(0,10):'')+'"></div>'
+      +'<div class="stil">Wijzigingen worden direct opgeslagen.</div>'
+      +'<button class="knop licht breed" id="tb-sluit">Klaar</button></div>';
+    sh.innerHTML=x; sh.style.display='flex';
+    sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+    document.getElementById('tb-sluit').onclick=dichtFn;
+    const update=async(fields,log)=>{
+      try{ await api({action:'taak_update',id:taakId,fields:fields,log:log}); await laad(); maak(); }
+      catch(e){ toast(e.message||'Opslaan mislukt'); }
+    };
+    document.getElementById('tb-oms').onchange=e=>{
+      const v=e.target.value.trim();
+      if(v) update({omschrijving:v}, 'Taak aangepast: '+v);
+    };
+    document.getElementById('tb-deadline').onchange=e=>update({deadline:e.target.value||null}, 'Taak "'+t.omschrijving+'" deadline → '+(e.target.value||'geen'));
+    document.getElementById('tb-afd').onclick=()=>{
+      afdelingKiezer('Afdeling voor deze taak', id=>{
+        (async()=>{ try{ await api({action:'taak_update',id:taakId,fields:{afdeling_id:id},log:'Taak "'+t.omschrijving+'" afdeling gewijzigd'}); await laad(); }catch(e){ toast('Opslaan mislukt'); } taakBewerken(taakId); })();
+      });
+    };
+    document.getElementById('tb-bedrijf').onclick=()=>{
+      bedrijfKiezer('Bedrijf voor deze taak', t.bedrijf_id||null, bid=>{
+        (async()=>{ try{ await api({action:'taak_update',id:taakId,fields:{bedrijf_id:bid},log:'Taak "'+t.omschrijving+'" bedrijf gewijzigd'}); await laad(); }catch(e){ toast('Opslaan mislukt'); } taakBewerken(taakId); })();
+      });
+    };
+  };
+  maak();
+}
 function koppelTaken(root){
+  root.querySelectorAll('button[data-tbewerk]').forEach(b=>b.onclick=()=>taakBewerken(+b.dataset.tbewerk));
   root.querySelectorAll('button[data-tklaar]').forEach(b=>b.onclick=()=>{
     const t=(S.data.taken||[]).find(x=>x.id===+b.dataset.tklaar);
     doe({action:'taak_update',id:t.id,fields:{status:'klaar'}}, 'Taak afgerond: '+t.omschrijving);
