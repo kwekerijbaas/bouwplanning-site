@@ -829,7 +829,8 @@ function rAfdDetail(app){
       +'<div class="datums">'+(a.status==='nvt'?'n.v.t.':(r.start?fmt(r.start)+(r.eind?' t/m '+fmt(r.eind):' · duur nog invullen'):'nog niet gepland'))
       +(a.handmatige_start?' · 📌 vast op '+fmt(pd(a.handmatige_start)):'')
       +((a.skipdagen&&a.skipdagen.length)?' · '+a.skipdagen.length+' vrije dag(en)':'')
-      +(function(){const b=bedrijfVan(afd,a); return b?' · '+bedrijfDot(b.naam)+esc(b.naam)+(b.afwijkend?' •':''):'';})()+'</div></div>'
+      +(function(){const b=bedrijfVan(afd,a); return b?' · '+bedrijfDot(b.naam)+esc(b.naam)+(b.afwijkend?' •':''):'';})()
+      +(a.notitie?' · &#8618; '+esc(a.notitie):'')+'</div></div>'
       +'<span class="stepper"><button class="stap" data-min="'+a.id+'">−</button><input type="number" min="0" max="99" data-duur="'+a.id+'" value="'+(a.duur==null?'':a.duur)+'" placeholder="dgn" title="werkdagen"><button class="stap" data-plus="'+a.id+'">+</button></span>'
       +statusKnop(a)
       +'<button class="pijl" data-op="meer" data-id="'+a.id+'">⋯</button>'
@@ -920,10 +921,13 @@ function dagenPopup(afdId, actId){
       x+='</div>';
       if(sk.size) x+='<button class="knop klein licht" id="dp-wis">alle vrije dagen wissen</button>';
     }
+    if(r.eind&&a.duur&&a.duur>=2) x+='<button class="knop licht breed" id="dp-overdracht">&#8618; Vanaf een datum overdragen aan ander bedrijf&hellip;</button>';
     x+='<button class="knop licht breed" id="dp-sluit">Klaar</button></div>';
     sh.innerHTML=x; sh.style.display='flex';
     sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
     document.getElementById('dp-sluit').onclick=dichtFn;
+    const ov=document.getElementById('dp-overdracht');
+    if(ov) ov.onclick=()=>overdrachtForm(afdId,actId);
     const update=async(fields,log)=>{
       const oud=planAfdeling(afd);
       try{
@@ -966,6 +970,66 @@ function dagenPopup(afdId, actId){
   maak();
 }
 
+function overdrachtForm(afdId, actId){
+  const sh=document.getElementById('sheet');
+  const afd=S.data.afdelingen.find(x=>x.id===afdId);
+  const a=S.data.activiteiten.find(x=>x.id===actId);
+  if(!afd||!a) return;
+  const rows=planAfdeling(afd);
+  const r=rows.find(x=>x.a.id===actId);
+  if(!r||!r.start||!r.eind||!a.duur||a.duur<2){ toast('Overdragen kan alleen bij een geplande activiteit van minstens 2 werkdagen'); return; }
+  const minD=new Date(r.start); minD.setUTCDate(minD.getUTCDate()+1);
+  let std=pd(vandaagISO()); std.setUTCDate(std.getUTCDate()+1);
+  if(std<minD) std=new Date(minD);
+  if(std>r.eind) std=new Date(r.eind);
+  const b=bedrijfVan(afd,a);
+  sh.innerHTML='<div class="sheetkaart"><div class="sheettitel"><span class="chip" style="background:'+kleur(a.naam)+'">'+esc(a.naam)+'</span> overdragen — '+esc(afdNaam(afd))+'</div>'
+    +'<div class="stil">'+(b?bedrijfDot(b.naam)+esc(b.naam):'Het huidige bedrijf')+' werkt t/m de dag v&oacute;&oacute;r de gekozen datum; het nieuwe bedrijf doet de resterende werkdagen en rondt af. Vervolgwerk schuift automatisch mee.</div>'
+    +'<div class="sheetrij"><label>Nieuw bedrijf start op</label><input type="date" id="ov-datum" value="'+iso(std)+'" min="'+iso(minD)+'" max="'+iso(r.eind)+'"></div>'
+    +'<div class="stil" id="ov-info"></div>'
+    +'<button class="knop breed" id="ov-kies">Kies het nieuwe bedrijf&hellip;</button>'
+    +'<button class="knop licht breed" id="ov-terug">Annuleren</button></div>';
+  sh.style.display='flex';
+  sh.onclick=e=>{ if(e.target===sh){ sh.style.display='none'; sh.innerHTML=''; } };
+  const telling=()=>{
+    const dIso=document.getElementById('ov-datum').value;
+    const dOv=pd(dIso);
+    if(!dOv||dOv<=r.start||dOv>r.eind) return null;
+    let n1=0;
+    for(let d=new Date(r.start); d<dOv; d.setUTCDate(d.getUTCDate()+1)){ if(werkdagAct(d,afd,a)) n1++; }
+    const rest=a.duur-n1;
+    if(n1<1||rest<1) return null;
+    return {dIso:dIso,dOv:dOv,n1:n1,rest:rest};
+  };
+  const info=()=>{
+    const t=telling();
+    document.getElementById('ov-info').textContent = t
+      ? 'Huidig bedrijf: '+t.n1+' werkdag(en), t/m '+fmt(new Date(t.dOv.getTime()-86400000))+'. Nieuw bedrijf: '+t.rest+' werkdag(en).'
+      : 'Kies een datum na de start en uiterlijk op de einddatum.';
+  };
+  info();
+  document.getElementById('ov-datum').onchange=info;
+  document.getElementById('ov-terug').onclick=()=>dagenPopup(afdId,actId);
+  document.getElementById('ov-kies').onclick=()=>{
+    const t=telling();
+    if(!t){ toast('Kies eerst een geldige datum'); return; }
+    const skips=a.skipdagen||[];
+    bedrijfKiezer('Wie neemt "'+a.naam+'" over vanaf '+fmt(t.dOv)+'?', null, async bid=>{
+      if(bid==null){ toast('Overdragen geannuleerd: geen bedrijf gekozen'); return; }
+      try{
+        await api({action:'act_splits',id:actId,
+          duur_oud:t.n1,
+          skipdagen_oud:skips.filter(s=>s<t.dIso),
+          nieuw:{duur:t.rest,bedrijf_id:bid,skipdagen:skips.filter(s=>s>=t.dIso),
+            notitie:'overgenomen van '+(b?b.naam:'vorig bedrijf')+' per '+t.dIso},
+          log:afdNaam(afd)+' — "'+a.naam+'" per '+t.dIso+' overgedragen aan '+(bedrijfNaam(bid)||'?')+' ('+t.n1+' + '+t.rest+' wd)'});
+        await laad(); S.gewijzigd=null; render();
+        toast((bedrijfNaam(bid)||'Het nieuwe bedrijf')+' gaat verder vanaf '+fmt(t.dOv)+' en rondt af');
+      }catch(e){ toast(e.message||'Overdragen mislukt'); }
+    });
+  };
+}
+
 function meerMenu(a,afd){
   const sh=document.getElementById('sheet');
   sh.innerHTML='<div class="sheetkaart"><div class="sheettitel">'+esc(a.naam)+' — '+esc(afdNaam(afd))+'</div>'
@@ -974,6 +1038,7 @@ function meerMenu(a,afd){
     +(a.handmatige_start?'<button class="knop klein licht" id="sh-datum-wis">Wis 📌</button>':'')+'</div>'
     +'<div class="sheetrij"><label>🏢 Bedrijf</label><button class="knop licht klein" id="sh-bedrijf">'
     +(function(){const b=bedrijfVan(afd,a); return b? bedrijfDot(b.naam)+esc(b.naam)+(b.afwijkend?' (afwijkend)':' (standaard locatie)') : 'kiezen…';})()+'</button></div>'
+    +'<button class="knop licht breed" id="sh-overdracht">&#8618; Vanaf een datum overdragen aan ander bedrijf&hellip;</button>'
     +'<button class="knop licht breed" id="sh-nvt">'+(a.status==='nvt'?'Weer actief maken':'Markeer als n.v.t.')+'</button>'
     +'<button class="knop rood breed" id="sh-del">Verwijderen</button>'
     +'<button class="knop licht breed" id="sh-sluit">Sluiten</button></div>';
@@ -993,6 +1058,7 @@ function meerMenu(a,afd){
       doe({action:'act_update',id:a.id,fields:{bedrijf_id:bid}}, afdNaam(afd)+' — "'+a.naam+'" bedrijf → '+(bid?bedrijfNaam(bid):'standaard locatie'));
     });
   };
+  document.getElementById('sh-overdracht').onclick=()=>{ dicht(); overdrachtForm(afd.id,a.id); };
   document.getElementById('sh-nvt').onclick=()=>{
     const nieuw=a.status==='nvt'?'todo':'nvt';
     dicht(); doe({action:'act_update',id:a.id,fields:{status:nieuw}}, afdNaam(afd)+' — "'+a.naam+'" → '+nieuw);
