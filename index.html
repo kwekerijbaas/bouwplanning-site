@@ -55,6 +55,8 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 #wg tr.blokkop td{background:#eef4f1;font-weight:600;color:var(--groen);padding:4px 8px;font-size:11px}
 #wg tr.lockop td{background:var(--groen);color:#fff;font-weight:700;padding:5px 8px;font-size:12px}
 .wcel{height:30px;min-width:44px;position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:1px 2px}
+.wcel.breed{height:auto;min-height:34px;display:block;padding:3px 4px}
+.wblok{font-size:11px;line-height:1.35;background:#fff;border:1px solid var(--lijn);border-left-width:4px;border-radius:6px;padding:3px 6px;margin:2px 0;white-space:normal;text-align:left}
 .wseg{height:8px;border-radius:3px;min-width:8px}
 .wlev{position:absolute;top:1px;right:2px;width:8px;height:8px;border-radius:50%;background:var(--rood);border:1.5px solid #fff}
 .wlev.ok{background:var(--groen-licht)}
@@ -164,7 +166,7 @@ const MAT_KLEUR = {glas:'#1d70b8', schermdoek:'#9b5de5', gronddoek:'#52b788', at
 const LEV_PALET=['#1d70b8','#e07a5f','#9b5de5','#2d6a4f','#f2a541','#c1442e','#52b788','#6a4c93','#bc6c25','#8d99ae'];
 function levKleur(naam){ let n=0; const s=String(naam||''); for(let i=0;i<s.length;i++) n=(n+s.charCodeAt(i)*(i+1))%LEV_PALET.length; return LEV_PALET[n]; }
 const S = { data:null, view:'week', dag:vandaagISO(), selAfd:null, weekStart:null,
-  levMaand:null, levMat:null, levBedrijf:null, levDag:null, nlBedrijf:null, ntAfd:null, ntBedrijf:null, weekBlok:null, dagBlok:null, takBedrijf:null,
+  levMaand:null, levMat:null, levBedrijf:null, levDag:null, nlBedrijf:null, ntAfd:null, ntBedrijf:null, weekBlok:null, dagBlok:null, takBedrijf:null, wkStart:null, wkVenster:null,
   code:localStorage.getItem('rp_code')||'', wie:localStorage.getItem('rp_wie')||'' };
 function dichtSet(){ try{ return new Set(JSON.parse(localStorage.getItem('rp_dicht')||'[]')); }catch(e){ return new Set(); } }
 function dichtToggle(key){ const s=dichtSet(); if(s.has(key)) s.delete(key); else s.add(key);
@@ -492,24 +494,26 @@ function koppelLev(root){
 
 /* ---- Week ---- */
 function rWeek(app){
-  const nu=maandagVan(pd(vandaagISO()));
-  let min=new Date(nu); min.setUTCDate(min.getUTCDate()-7);
-  let max=new Date(nu); max.setUTCDate(max.getUTCDate()+7*14);
-  const plans={};
-  for(const afd of S.data.afdelingen.filter(a=>a.actief)){
-    plans[afd.id]=planAfdeling(afd);
-    for(const r of plans[afd.id]) if(r.eind&&r.eind>max) max=maandagVan(r.eind);
-  }
-  for(const l of S.data.leveringen) if(l.datum){ const d=pd(l.datum); if(d>max)max=maandagVan(d); }
-  const weken=[]; for(let d=new Date(min); d<=max; d.setUTCDate(d.getUTCDate()+7)) weken.push(new Date(d));
+  const nuMa=maandagVan(pd(vandaagISO()));
+  if(!S.wkStart) S.wkStart=iso(nuMa);
+  if(!S.wkVenster){ const v=+(localStorage.getItem('rp_venster')||2); S.wkVenster=(v===6||v===13)?v:2; }
+  const start=pd(S.wkStart);
+  const weken=[]; for(let i=0;i<S.wkVenster;i++){ const d=new Date(start); d.setUTCDate(d.getUTCDate()+7*i); weken.push(d); }
+  const breed=S.wkVenster<=4;
   const dicht=dichtSet();
   const verborgen=filterSet();
-  let h='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><button class="knop licht klein" id="wk-filter">🔍 Filter afdelingen</button>'
+  const plans={};
+  for(const afd of S.data.afdelingen.filter(a=>a.actief&&!verborgen.has(a.id))) plans[afd.id]=planAfdeling(afd);
+  const iwA=isoWeek(weken[0]), iwB=isoWeek(weken[weken.length-1]);
+  let h='<div class="dagnav"><button id="wk-vorig">‹</button><div class="datum">'+(S.wkVenster>1?('wk '+iwA.week+' – wk '+iwB.week):('wk '+iwA.week))+' <span class="stil">vanaf '+fmt(weken[0])+'</span></div><button id="wk-volgend">›</button><button id="wk-nu" style="font-size:12px">deze week</button></div>';
+  h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+    +'<span class="keuze">'+[2,6,13].map(n=>'<button data-venster="'+n+'" class="'+(S.wkVenster===n?'aan':'')+'">'+n+' weken</button>').join('')+'</span>'
+    +'<button class="knop licht klein" id="wk-filter">🔍 Filter afdelingen</button>'
     +(verborgen.size?'<span class="stil">'+verborgen.size+' verborgen</span><button class="knop klein" id="wk-filter-wis">alles tonen</button>':'')
     +'</div>';
-  h+='<div id="wg"><table><tr class="kop"><th class="naam">Afdeling</th>';
+  h+='<div id="wg"><table'+(breed?' style="width:100%"':'')+'><tr class="kop"><th class="naam">Afdeling</th>';
   for(const w of weken){ const iw=isoWeek(w);
-    h+='<th data-week="'+iso(w)+'" title="klik voor dagoverzicht van deze week" class="'+(w.getTime()===nu.getTime()?'wknu':'')+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span></th>'; }
+    h+='<th data-week="'+iso(w)+'" title="klik voor dagoverzicht van deze week" class="'+(w.getTime()===nuMa.getTime()?'wknu':'')+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span></th>'; }
   h+='</tr>';
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     const locKey='loc-'+loc.id;
@@ -530,15 +534,29 @@ function rWeek(app){
         h+='<tr><td class="naam" data-afd="'+afd.id+'">'+esc(isNaN(+afd.code)?afd.code:('afd '+afd.code))+'</td>';
         for(const w of weken){
           const we=new Date(w); we.setUTCDate(we.getUTCDate()+6);
+          const levsWeek=S.data.leveringen.filter(l=>{ if(!l.datum)return false; const d=pd(l.datum);
+            return d>=w&&d<=we&&levHoortBij(l,afd); });
           let segs='';
-          for(const r of plans[afd.id]){
-            if(r.start&&r.eind&&r.start<=we&&r.eind>=w)
-              segs+='<div class="wseg" style="background:'+kleur(r.a.naam)+';opacity:'+(r.a.status==='klaar'?0.35:1)+'" title="'+esc(r.a.naam)+' '+fmt(r.start)+'–'+fmt(r.eind)+'"></div>';
+          if(breed){
+            for(const r of plans[afd.id]){
+              if(r.start&&r.eind&&r.start<=we&&r.eind>=w&&r.a.status!=='nvt'){
+                const b=bedrijfVan(afd,r.a);
+                segs+='<div class="wblok" style="border-left-color:'+kleur(r.a.naam)+';opacity:'+(r.a.status==='klaar'?0.45:1)+'">'+esc(r.a.naam)+(r.a.status==='klaar'?' ✓':'')
+                  +(b?'<br><span class="stil">'+bedrijfDot(b.naam)+esc(b.naam)+'</span>':'')+'</div>';
+              }
+            }
+            for(const l of levsWeek){
+              segs+='<div class="wblok" style="border-left-color:'+(l.ontvangen?'#52b788':'#c1442e')+'">📦 '+fmt(pd(l.datum))+' · '+esc(levBedrijfNaam(l))+' · '+esc(l.materiaal)+(l.ontvangen?' ✓':'')+'</div>';
+            }
+            h+='<td><div class="wcel breed" data-afd="'+afd.id+'">'+segs+'</div></td>';
+          } else {
+            for(const r of plans[afd.id]){
+              if(r.start&&r.eind&&r.start<=we&&r.eind>=w&&r.a.status!=='nvt')
+                segs+='<div class="wseg" style="background:'+kleur(r.a.naam)+';opacity:'+(r.a.status==='klaar'?0.35:1)+'" title="'+esc(r.a.naam)+' '+fmt(r.start)+'–'+fmt(r.eind)+'"></div>';
+            }
+            const lev = levsWeek.length?'<span class="wlev '+(levsWeek.every(x=>x.ontvangen)?'ok':'')+'" title="'+esc(levsWeek.map(x=>levBedrijfNaam(x)+' '+x.materiaal).join(', '))+'"></span>':'';
+            h+='<td><div class="wcel" data-afd="'+afd.id+'">'+segs+lev+'</div></td>';
           }
-          const levs=S.data.leveringen.filter(l=>{ if(!l.datum)return false; const d=pd(l.datum);
-            return d>=w&&d<=we&&(l.afdeling_tekst||'').toLowerCase().includes(afd.code.toLowerCase())&&(l.afdeling_tekst||'').toLowerCase().includes(loc.code.split('/')[0].toLowerCase().slice(0,2)); });
-          const lev = levs.length?'<span class="wlev '+(levs.every(x=>x.ontvangen)?'ok':'')+'" title="'+esc(levs.map(x=>x.leverancier+' '+x.materiaal).join(', '))+'"></span>':'';
-          h+='<td><div class="wcel" data-afd="'+afd.id+'">'+segs+lev+'</div></td>';
         }
         h+='</tr>';
       }
@@ -548,6 +566,10 @@ function rWeek(app){
   h+='<div class="legenda">'+actCats().map(c=>'<span><i style="background:'+c.kleur+'"></i>'+esc(c.naam)+'</span>').join('')
     +'<span><i style="background:var(--rood);border-radius:50%"></i>levering verwacht</span><span><i style="background:var(--groen-licht);border-radius:50%"></i>levering binnen</span></div>';
   app.innerHTML=h;
+  document.getElementById('wk-vorig').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()-7*S.wkVenster);S.wkStart=iso(d);render();};
+  document.getElementById('wk-volgend').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()+7*S.wkVenster);S.wkStart=iso(d);render();};
+  document.getElementById('wk-nu').onclick=()=>{S.wkStart=iso(maandagVan(pd(vandaagISO())));render();};
+  app.querySelectorAll('button[data-venster]').forEach(b=>b.onclick=()=>{S.wkVenster=+b.dataset.venster;localStorage.setItem('rp_venster',S.wkVenster);render();});
   app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.view='afdelingen';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
   app.querySelectorAll('th[data-week]').forEach(el=>el.onclick=()=>{S.weekStart=el.dataset.week;S.weekBlok=null;S.view='weekdetail';render();window.scrollTo(0,0);});
