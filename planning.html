@@ -71,7 +71,7 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .aggreep{position:absolute;top:50%;right:-2px;transform:translateY(-50%);width:18px;height:26px;cursor:col-resize;touch-action:none;z-index:3;display:flex;align-items:center;justify-content:center}
 .aggreep i{width:4px;height:15px;border-radius:2px;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.35)}
 .agskip{height:16px;width:100%;min-width:18px;border-radius:3px;background:repeating-linear-gradient(45deg,#e8e8e8,#e8e8e8 3px,#fff 3px,#fff 6px);cursor:pointer}
-.aglev{font-size:13px}
+.aglev{font-size:13px;cursor:pointer}
 .aglev.ok{opacity:.45}
 .agklik{cursor:pointer}
 .wseg{height:8px;border-radius:3px;min-width:8px}
@@ -868,10 +868,10 @@ function rAfdDetail(app){
   h+='</tr>';
   const afdLevs=S.data.leveringen.filter(l=>l.datum&&levHoortBij(l,afd));
   if(afdLevs.length){
-    h+='<tr><td class="naam">📦 Leveringen</td>';
+    h+='<tr><td class="naam" id="ag-naar-lev" title="naar het tabblad Leveringen">📦 Leveringen ›</td>';
     for(const d of dagen){ const dIso=iso(d);
       const dl=afdLevs.filter(l=>l.datum.slice(0,10)===dIso);
-      h+='<td><div class="agcel">'+dl.map(l=>'<span class="aglev'+(l.ontvangen?' ok':'')+'" title="'+esc(levBedrijfNaam(l)+' · '+l.materiaal)+'">📦</span>').join('')+'</div></td>'; }
+      h+='<td><div class="agcel">'+dl.map(l=>'<span class="aglev'+(l.ontvangen?' ok':'')+'" data-levkaart="'+l.id+'" title="'+esc(levBedrijfNaam(l)+' · '+l.materiaal)+' — tik om te bekijken of aan te passen">📦</span>').join('')+'</div></td>'; }
     h+='</tr>';
   }
   let ietsGepland=false;
@@ -954,6 +954,9 @@ function rAfdDetail(app){
   const navAfd=n=>{ S.selAfd=volgorde[vIdx+n]; S.gewijzigd=null; render(); window.scrollTo(0,0); };
   if(vIdx>0) document.getElementById('afd-vorig').onclick=()=>navAfd(-1);
   if(vIdx<volgorde.length-1) document.getElementById('afd-volgend').onclick=()=>navAfd(1);
+  const gl=document.getElementById('ag-naar-lev');
+  if(gl) gl.onclick=()=>{ S.view='leveringen'; S.selAfd=null; render(); window.scrollTo(0,0); };
+  app.querySelectorAll('.aglev[data-levkaart]').forEach(el=>el.onclick=e=>{ e.stopPropagation(); levKaart(+el.dataset.levkaart); });
   app.querySelectorAll('.aggreep').forEach(g=>{
     g.onclick=e=>e.stopPropagation();
     g.onpointerdown=e=>{
@@ -1175,6 +1178,49 @@ function actKaart(afdId, actId){
     document.getElementById('ak-del').onclick=()=>{
       if(!zekerDel){ zekerDel=true; maak(); return; }
       dichtFn(); doe({action:'act_delete',id:a.id}, afdNaam(afd)+' — activiteit "'+a.naam+'" verwijderd');
+    };
+  };
+  maak();
+}
+
+function levKaart(levId){
+  const sh=document.getElementById('sheet');
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';render();};
+  let zeker=false;
+  const maak=()=>{
+    const l=S.data.leveringen.find(x=>x.id===levId);
+    if(!l){ dichtFn(); return; }
+    const nm=levBedrijfNaam(l);
+    let x='<div class="sheetkaart"><div class="sheettitel">📦 Levering — '+bedrijfDot(nm)+esc(nm)+'</div>'
+      +'<div class="sheetrij"><label>Datum</label><input type="date" id="lk-datum" value="'+esc(String(l.datum||'').slice(0,10))+'">'
+      +'<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="lk-ontv" '+(l.ontvangen?'checked':'')+'> ontvangen</label></div>'
+      +'<div class="sheetrij"><label>Bedrijf</label><button class="knop licht klein" id="lk-bedrijf">'+bedrijfDot(nm)+esc(nm)+' ✎</button></div>'
+      +'<div class="sheetrij"><label>Materiaal</label><span class="keuze">'+['glas','schermdoek','gronddoek','atlasdraad','overig'].map(m=>'<button data-lkmat="'+m+'" class="'+(l.materiaal===m?'aan':'')+'">'+m+'</button>').join('')+'</span></div>'
+      +'<div class="sheetrij"><label>Afdeling(en)</label><input type="text" id="lk-afd" value="'+esc(l.afdeling_tekst||'')+'" style="flex:1"></div>'
+      +'<div class="sheetrij"><label>Omschrijving</label><input type="text" id="lk-oms" value="'+esc(l.omschrijving||'')+'" style="flex:1"></div>'
+      +(l.bron?'<div class="stil">bron: '+esc(l.bron)+'</div>':'')
+      +'<div class="sheetrij"><button class="knop rood" id="lk-del">'+(zeker?'Zeker weten? Tik nogmaals':'Verwijderen')+'</button></div>'
+      +'<button class="knop licht breed" id="lk-sluit">Klaar</button></div>';
+    sh.innerHTML=x; sh.style.display='flex';
+    sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+    document.getElementById('lk-sluit').onclick=dichtFn;
+    const upd=async(fields,log)=>{
+      try{ await api({action:'lev_update',id:levId,fields:fields,log:log||''}); await laad(); maak(); }
+      catch(e){ toast(e.message||'Opslaan mislukt'); }
+    };
+    document.getElementById('lk-datum').onchange=e=>{ if(e.target.value) upd({datum:e.target.value},'Levering '+nm+' datum → '+e.target.value); };
+    document.getElementById('lk-ontv').onchange=e=>upd({ontvangen:e.target.checked},'Levering '+nm+' '+(e.target.checked?'ontvangen ✓':'niet ontvangen'));
+    document.getElementById('lk-bedrijf').onclick=()=>{
+      bedrijfKiezer('Bedrijf voor deze levering', l.bedrijf_id||null, bid=>{
+        upd({bedrijf_id:bid, leverancier:bid?(bedrijfNaam(bid)||''):(l.leverancier||'')},'Levering bedrijf → '+(bid?bedrijfNaam(bid):'geen'));
+      });
+    };
+    sh.querySelectorAll('button[data-lkmat]').forEach(b=>b.onclick=()=>upd({materiaal:b.dataset.lkmat},'Levering '+nm+' materiaal → '+b.dataset.lkmat));
+    document.getElementById('lk-afd').onchange=e=>upd({afdeling_tekst:e.target.value.trim()});
+    document.getElementById('lk-oms').onchange=e=>upd({omschrijving:e.target.value.trim()});
+    document.getElementById('lk-del').onclick=()=>{
+      if(!zeker){ zeker=true; maak(); return; }
+      dichtFn(); doe({action:'lev_delete',id:levId},'Levering verwijderd: '+nm+' '+(String(l.datum||'').slice(0,10)));
     };
   };
   maak();
