@@ -62,9 +62,12 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .wcel.breed{height:auto;min-height:34px;display:block;padding:3px 4px}
 .wblok{font-size:11px;line-height:1.35;background:#fff;border:1px solid var(--lijn);border-left-width:4px;border-radius:6px;padding:3px 6px;margin:2px 0;white-space:normal;text-align:left}
 /* afdeling-agenda */
-.agcel{min-height:24px;display:flex;align-items:center;justify-content:center;gap:1px;padding:1px}
+.agcel{min-height:24px;display:flex;align-items:center;justify-content:center;gap:1px;padding:1px;position:relative}
+.agcel.agdoel{background:rgba(45,106,79,.16)}
 .agbalk{height:16px;width:100%;min-width:18px;border-radius:3px;cursor:pointer}
 .agbalk.agnieuw{outline:2px solid var(--oranje)}
+.aggreep{position:absolute;top:50%;right:-2px;transform:translateY(-50%);width:18px;height:26px;cursor:col-resize;touch-action:none;z-index:3;display:flex;align-items:center;justify-content:center}
+.aggreep i{width:4px;height:15px;border-radius:2px;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.35)}
 .agskip{height:16px;width:100%;min-width:18px;border-radius:3px;background:repeating-linear-gradient(45deg,#e8e8e8,#e8e8e8 3px,#fff 3px,#fff 6px);cursor:pointer}
 .aglev{font-size:13px}
 .aglev.ok{opacity:.45}
@@ -98,7 +101,7 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .stepper input{width:44px;text-align:center}
 .stap{width:30px;height:34px;border:1px solid var(--lijn);border-radius:7px;background:#fff;font-size:16px;color:var(--groen);font-weight:700}
 #sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:110}
-.sheetkaart{background:#fff;border-radius:14px 14px 0 0;padding:16px;width:100%;max-width:560px;display:flex;flex-direction:column;gap:10px}
+.sheetkaart{background:#fff;border-radius:14px 14px 0 0;padding:16px;width:100%;max-width:560px;display:flex;flex-direction:column;gap:10px;max-height:92vh;overflow:auto}
 .sheettitel{font-weight:700;font-size:15px}
 .sheetrij{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .knop.breed{width:100%;text-align:center}
@@ -117,6 +120,8 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .kaldag.sel{background:#e8f0ec;border-color:var(--groen)}
 .kalnr{font-size:11px;color:var(--grijs)}
 .kaldots{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
+.kalbalk{font-size:10px;line-height:1.25;background:#fff;border:1px solid var(--lijn);border-left-width:4px;border-radius:5px;padding:1px 3px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kalbalk.ok{opacity:.45}
 .ldot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
 /* taken, voortgang, foto's */
 .thumb{height:64px;border-radius:8px;border:1px solid var(--lijn);object-fit:cover}
@@ -310,48 +315,88 @@ function kleur(naam){ const c=S.data&&(S.data.actcats||[]).find(x=>x.naam===naam
 function actCats(){ return (S.data&&S.data.actcats)||[]; }
 function openVoorstellen(){ return S.data?S.data.voorstellen.filter(v=>v.status==='open'):[]; }
 
-/* ---------- lijstenbeheer (activiteiten + bedrijven) ---------- */
-function beheerSheet(type){
-  const sh=document.getElementById('sheet');
-  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';render();};
-  let bewerkId=null;
-  const maak=()=>{
-    const items=type==='act'?actCats():(S.data.bedrijven||[]);
-    let x='<div class="sheetkaart"><div class="sheettitel">'+(type==='act'?'🎨 Activiteiten beheren':'🏢 Bedrijven beheren')+'</div>'
-      +'<div class="stil">Hernoemen werkt overal door. Verwijderen kan alleen als iets nergens meer gebruikt wordt.</div>';
-    for(const it of items){
-      const dotK=type==='act'?it.kleur:levKleur(it.naam);
-      if(bewerkId===it.id){
-        x+='<div class="sheetrij"><i class="ldot" style="background:'+dotK+'"></i><input type="text" id="bh-naam" value="'+esc(it.naam)+'" style="flex:1"><button class="knop klein" data-bhok="'+it.id+'">opslaan</button><button class="knop klein licht" id="bh-annuleer">annuleer</button></div>';
-      } else {
-        x+='<div class="sheetrij"><i class="ldot" style="background:'+dotK+'"></i><span style="flex:1">'+esc(it.naam)+'</span><button class="pijl" data-bhw="'+it.id+'" title="hernoemen">✎</button><button class="pijl" data-bhdel="'+it.id+'" title="verwijderen">🗑</button></div>';
+/* ---------- lijstenbeheer (tabblad Beheer) ---------- */
+let bhBewerk=null;
+function beheerRijen(type, items){
+  let x='';
+  for(const it of items){
+    const dotK=type==='act'?it.kleur:levKleur(it.naam);
+    if(bhBewerk&&bhBewerk.type===type&&bhBewerk.id===it.id){
+      x+='<div class="regel"><i class="ldot" style="background:'+dotK+'"></i><input type="text" id="bh-naam" value="'+esc(it.naam)+'" style="flex:1"><button class="knop klein" data-bhok="'+type+'|'+it.id+'">opslaan</button><button class="knop klein licht" id="bh-annuleer">annuleer</button></div>';
+    } else {
+      x+='<div class="regel"><i class="ldot" style="background:'+dotK+'"></i><span style="flex:1">'+esc(it.naam)+'</span><button class="pijl" data-bhw="'+type+'|'+it.id+'" title="hernoemen">✎</button><button class="pijl" data-bhdel="'+type+'|'+it.id+'" title="verwijderen">🗑</button></div>';
+    }
+  }
+  return x;
+}
+function rBeheer(app){
+  const dicht=dichtSet();
+  let h='<div class="kaart"><h2>🎨 Activiteiten</h2>'
+    +'<div class="stil" style="margin-bottom:6px">Hernoemen werkt overal door. Verwijderen kan alleen als een activiteit nergens meer in een planning staat.</div>'
+    +beheerRijen('act', actCats())
+    +'<div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="bh-nieuw-act" placeholder="nieuwe activiteit…" style="flex:1"><button class="knop klein" id="bh-nieuw-act-ok">+ toevoegen</button></div></div>';
+  h+='<div class="kaart"><h2>🏢 Bedrijven</h2>'
+    +'<div class="stil" style="margin-bottom:6px">&Eacute;&eacute;n lijst voor werk &eacute;n leveringen; elk bedrijf heeft overal dezelfde kleur.</div>'
+    +beheerRijen('bedrijf', S.data.bedrijven||[])
+    +'<div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="bh-nieuw-bedr" placeholder="nieuw bedrijf…" style="flex:1"><button class="knop klein" id="bh-nieuw-bedr-ok">+ toevoegen</button></div></div>';
+  for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
+    const k='bt-'+loc.id; const d=dicht.has(k);
+    h+='<div class="kaart"><h2 class="klap" data-klap="'+k+'">'+(d?'▸ ':'▾ ')+'🔗 Vaste bedrijven — '+esc(loc.code)+'</h2>';
+    if(!d){
+      h+='<div class="stil" style="margin-bottom:6px">Standaard bedrijf per activiteit voor deze hele locatie; per afdeling kun je ervan afwijken (via de drie puntjes bij de activiteit).</div>';
+      for(const cat of actCats()){
+        const an=cat.naam;
+        const t=(S.data.toewijzingen||[]).find(x=>x.locatie_id===loc.id&&x.activiteit_naam===an);
+        const naam=t&&t.bedrijf_id?bedrijfNaam(t.bedrijf_id):null;
+        h+='<div class="regel" data-toew="'+loc.id+'|'+esc(an)+'" style="cursor:pointer">'
+          +'<span class="chip" style="background:'+kleur(an)+';width:10px;height:18px;padding:0;border-radius:4px"></span>'
+          +'<span style="flex:1">'+esc(an)+'</span>'
+          +'<span class="'+(naam?'':'stil')+'">'+(naam?bedrijfDot(naam)+esc(naam):'kies bedrijf')+'</span><span style="color:var(--grijs)">›</span></div>';
       }
     }
-    x+='<button class="knop licht breed" id="bh-sluit">Sluiten</button></div>';
-    sh.innerHTML=x; sh.style.display='flex';
-    sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
-    document.getElementById('bh-sluit').onclick=dichtFn;
-    sh.querySelectorAll('button[data-bhw]').forEach(b=>b.onclick=()=>{ bewerkId=+b.dataset.bhw; maak(); });
-    const ann=document.getElementById('bh-annuleer'); if(ann) ann.onclick=()=>{ bewerkId=null; maak(); };
-    sh.querySelectorAll('button[data-bhok]').forEach(b=>b.onclick=async()=>{
-      const v=document.getElementById('bh-naam').value.trim();
-      if(!v) return;
-      try{
-        await api({action:type==='act'?'actcat_update':'bedrijf_update',id:+b.dataset.bhok,naam:v,
-          log:(type==='act'?'Activiteit':'Bedrijf')+' hernoemd naar "'+v+'"'});
-        await laad(); bewerkId=null; maak();
-      }catch(e){ toast(e.message||'Hernoemen mislukt'); }
+    h+='</div>';
+  }
+  app.innerHTML=h;
+  app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
+  app.querySelectorAll('[data-toew]').forEach(el=>el.onclick=()=>{
+    const p=el.dataset.toew.split('|'); const locId=+p[0]; const an=p[1];
+    const t=(S.data.toewijzingen||[]).find(x=>x.locatie_id===locId&&x.activiteit_naam===an);
+    const loc=S.data.locaties.find(l=>l.id===locId);
+    bedrijfKiezer('Standaard bedrijf voor "'+an+'" op '+loc.code, t?t.bedrijf_id:null, bid=>{
+      doe({action:'toewijzing_set',locatie_id:locId,activiteit_naam:an,bedrijf_id:bid}, loc.code+' — standaard bedrijf "'+an+'" → '+(bid?bedrijfNaam(bid):'geen'));
     });
-    sh.querySelectorAll('button[data-bhdel]').forEach(b=>b.onclick=async()=>{
-      if(b.dataset.zeker!=='1'){ b.dataset.zeker='1'; toast('Nogmaals tikken om definitief te verwijderen'); return; }
-      try{
-        await api({action:type==='act'?'actcat_delete':'bedrijf_delete',id:+b.dataset.bhdel,
-          log:(type==='act'?'Activiteit':'Bedrijf')+' verwijderd uit de lijst'});
-        await laad(); maak();
-      }catch(e){ toast(e.message||'Verwijderen mislukt'); b.dataset.zeker=''; }
-    });
+  });
+  app.querySelectorAll('button[data-bhw]').forEach(b=>b.onclick=()=>{ const p=b.dataset.bhw.split('|'); bhBewerk={type:p[0],id:+p[1]}; render(); });
+  const ann=document.getElementById('bh-annuleer'); if(ann) ann.onclick=()=>{ bhBewerk=null; render(); };
+  app.querySelectorAll('button[data-bhok]').forEach(b=>b.onclick=async()=>{
+    const p=b.dataset.bhok.split('|');
+    const v=document.getElementById('bh-naam').value.trim();
+    if(!v) return;
+    try{
+      await api({action:p[0]==='act'?'actcat_update':'bedrijf_update',id:+p[1],naam:v,
+        log:(p[0]==='act'?'Activiteit':'Bedrijf')+' hernoemd naar "'+v+'"'});
+      await laad(); bhBewerk=null; render();
+    }catch(e){ toast(e.message||'Hernoemen mislukt'); }
+  });
+  app.querySelectorAll('button[data-bhdel]').forEach(b=>b.onclick=async()=>{
+    const p=b.dataset.bhdel.split('|');
+    if(b.dataset.zeker!=='1'){ b.dataset.zeker='1'; toast('Nogmaals tikken om definitief te verwijderen'); return; }
+    try{
+      await api({action:p[0]==='act'?'actcat_delete':'bedrijf_delete',id:+p[1],
+        log:(p[0]==='act'?'Activiteit':'Bedrijf')+' verwijderd uit de lijst'});
+      await laad(); render();
+    }catch(e){ toast(e.message||'Verwijderen mislukt'); b.dataset.zeker=''; }
+  });
+  const nA=document.getElementById('bh-nieuw-act-ok');
+  nA.onclick=()=>{
+    const v=document.getElementById('bh-nieuw-act').value.trim();
+    if(v) doe({action:'actcat_add',naam:v}, 'Activiteit toegevoegd: '+v);
   };
-  maak();
+  const nB=document.getElementById('bh-nieuw-bedr-ok');
+  nB.onclick=()=>{
+    const v=document.getElementById('bh-nieuw-bedr').value.trim();
+    if(v) doe({action:'bedrijf_add',naam:v}, 'Bedrijf toegevoegd: '+v);
+  };
 }
 
 /* ---------- foto's, afdelingkiezer ---------- */
@@ -404,7 +449,7 @@ function afdelingKiezer(titel, cb){
 }
 
 /* ---------- render ---------- */
-const TABS=[['week','Week'],['vandaag','Vandaag'],['taken','Taken'],['leveringen','Leveringen'],['afdelingen','Afdelingen'],['voortgang','Voortgang'],['inbox','Inbox']];
+const TABS=[['week','Week'],['vandaag','Vandaag'],['taken','Taken'],['leveringen','Leveringen'],['afdelingen','Afdelingen'],['voortgang','Voortgang'],['inbox','Inbox'],['beheer','&#9881;&#65039; Lijsten']];
 function render(){
   document.getElementById('tb-wie').textContent=S.wie?S.wie+' ▾':'';
   const tabs=document.getElementById('tabs');
@@ -425,6 +470,7 @@ function render(){
   else if(S.view==='leveringen') rLeveringen(app);
   else if(S.view==='taken') rTaken(app);
   else if(S.view==='voortgang') rVoortgang(app);
+  else if(S.view==='beheer') rBeheer(app);
   else rInbox(app);
 }
 
@@ -513,26 +559,29 @@ function koppelLev(root){
 function rWeek(app){
   const nuMa=maandagVan(pd(vandaagISO()));
   if(!S.wkStart) S.wkStart=iso(nuMa);
-  if(!S.wkVenster){ const v=+(localStorage.getItem('rp_venster')||2); S.wkVenster=(v>=1&&v<=13)?v:2; }
+  if(!S.wkVenster){ const v=+(localStorage.getItem('rp_venster3')||3); S.wkVenster=(v>=3&&v<=13)?v:3; }
   if(S.kolBreedte==null){ const kb=+(localStorage.getItem('rp_kolbreedte')||0); S.kolBreedte=(kb>=120&&kb<=500)?kb:0; }
-  const start=pd(S.wkStart);
+  const sel=pd(S.wkStart);
+  const offset=Math.floor((S.wkVenster-1)/2);
+  const start=new Date(sel); start.setUTCDate(start.getUTCDate()-7*offset);
   const weken=[]; for(let i=0;i<S.wkVenster;i++){ const d=new Date(start); d.setUTCDate(d.getUTCDate()+7*i); weken.push(d); }
-  const breed=S.wkVenster<=4;
   const dicht=dichtSet();
   const verborgen=filterSet();
   const plans={};
   for(const afd of S.data.afdelingen.filter(a=>a.actief&&!verborgen.has(a.id))) plans[afd.id]=planAfdeling(afd);
   const iwA=isoWeek(weken[0]), iwB=isoWeek(weken[weken.length-1]);
-  let h='<div class="dagnav"><button id="wk-vorig">‹</button><div class="datum">'+(S.wkVenster>1?('wk '+iwA.week+' – wk '+iwB.week):('wk '+iwA.week))+' <span class="stil">vanaf '+fmt(weken[0])+'</span></div><button id="wk-volgend">›</button><button id="wk-nu" style="font-size:12px">deze week</button></div>';
+  const iwSel=isoWeek(sel);
+  let h='<div class="dagnav"><button id="wk-vorig">‹</button><div class="datum">wk '+iwSel.week+' <span class="stil">'+fmt(sel)+(S.wkVenster>1?' · wk '+iwA.week+'–'+iwB.week+' in beeld':'')+'</span></div><button id="wk-volgend">›</button><button id="wk-nu" style="font-size:12px">deze week</button></div>';
   h+='<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
-    +'<label class="stil">weken in beeld:</label><button class="stap" id="wk-min">−</button><input type="range" id="wk-slider" min="1" max="13" step="1" value="'+S.wkVenster+'" style="width:120px;accent-color:var(--groen)"><button class="stap" id="wk-plus">+</button><b id="wk-slider-label" style="min-width:18px">'+S.wkVenster+'</b>'
+    +'<label class="stil">weken in beeld:</label><button class="stap" id="wk-min">−</button><input type="range" id="wk-slider" min="3" max="13" step="1" value="'+S.wkVenster+'" style="width:120px;accent-color:var(--groen)"><button class="stap" id="wk-plus">+</button><b id="wk-slider-label" style="min-width:18px">'+S.wkVenster+'</b>'
     +'<button class="knop licht klein" id="wk-filter">🔍 Filter afdelingen</button>'
     +(verborgen.size?'<span class="stil">'+verborgen.size+' verborgen</span><button class="knop klein" id="wk-filter-wis">alles tonen</button>':'')
     +'</div>';
-  const thStijl=(breed&&S.kolBreedte)?' style="min-width:'+S.kolBreedte+'px"':'';
-  h+='<div id="wg"><table'+(breed&&!S.kolBreedte?' style="width:100%"':'')+'><tr class="kop"><th class="naam">Afdeling</th>';
+  h+='<div id="wg"><table><tr class="kop"><th class="naam">Afdeling</th>';
   for(const w of weken){ const iw=isoWeek(w);
-    h+='<th data-week="'+iso(w)+'" title="klik om deze week vooraan te zetten"'+thStijl+' class="'+(w.getTime()===start.getTime()?'wknu':(w.getTime()===nuMa.getTime()?'wkhuidig':''))+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span><br><span class="dagknop" data-weekdag="'+iso(w)+'" title="dagplanning van deze week">dagen ›</span>'+(breed?'<span class="kolgreep" title="sleep om de kolombreedte aan te passen; dubbelklik = automatisch"></span>':'')+'</th>'; }
+    const isSel=w.getTime()===sel.getTime();
+    const thStijl=isSel?' style="min-width:'+(S.kolBreedte||260)+'px"':' style="min-width:64px"';
+    h+='<th data-week="'+iso(w)+'" title="klik om deze week te kiezen (komt in het midden)"'+thStijl+' class="'+(isSel?'wknu':(w.getTime()===nuMa.getTime()?'wkhuidig':''))+'">wk '+iw.week+'<br><span style="font-weight:400">'+w.getUTCDate()+'/'+(w.getUTCMonth()+1)+'</span><br><span class="dagknop" data-weekdag="'+iso(w)+'" title="dagplanning van deze week">dagen ›</span>'+(isSel?'<span class="kolgreep" title="sleep om de kolombreedte aan te passen; dubbelklik = automatisch"></span>':'')+'</th>'; }
   h+='</tr>';
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     const locKey='loc-'+loc.id;
@@ -556,7 +605,7 @@ function rWeek(app){
           const levsWeek=S.data.leveringen.filter(l=>{ if(!l.datum)return false; const d=pd(l.datum);
             return d>=w&&d<=we&&levHoortBij(l,afd); });
           let segs='';
-          if(breed){
+          if(w.getTime()===sel.getTime()){
             for(const r of plans[afd.id]){
               if(r.start&&r.eind&&r.start<=we&&r.eind>=w&&r.a.status!=='nvt'){
                 const b=bedrijfVan(afd,r.a);
@@ -585,13 +634,13 @@ function rWeek(app){
   h+='<div class="legenda">'+actCats().map(c=>'<span><i style="background:'+c.kleur+'"></i>'+esc(c.naam)+'</span>').join('')
     +'<span><i style="background:var(--rood);border-radius:50%"></i>levering verwacht</span><span><i style="background:var(--groen-licht);border-radius:50%"></i>levering binnen</span></div>';
   app.innerHTML=h;
-  document.getElementById('wk-vorig').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()-7*S.wkVenster);S.wkStart=iso(d);render();};
-  document.getElementById('wk-volgend').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()+7*S.wkVenster);S.wkStart=iso(d);render();};
+  document.getElementById('wk-vorig').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()-7);S.wkStart=iso(d);render();};
+  document.getElementById('wk-volgend').onclick=()=>{const d=pd(S.wkStart);d.setUTCDate(d.getUTCDate()+7);S.wkStart=iso(d);render();};
   document.getElementById('wk-nu').onclick=()=>{S.wkStart=iso(maandagVan(pd(vandaagISO())));render();};
   const sl=document.getElementById('wk-slider');
   sl.oninput=()=>{document.getElementById('wk-slider-label').textContent=sl.value;};
-  sl.onchange=()=>{S.wkVenster=+sl.value;localStorage.setItem('rp_venster',S.wkVenster);render();};
-  const zetVenster=n=>{S.wkVenster=Math.min(13,Math.max(1,n));localStorage.setItem('rp_venster',S.wkVenster);render();};
+  sl.onchange=()=>{S.wkVenster=+sl.value;localStorage.setItem('rp_venster3',S.wkVenster);render();};
+  const zetVenster=n=>{S.wkVenster=Math.min(13,Math.max(3,n));localStorage.setItem('rp_venster3',S.wkVenster);render();};
   document.getElementById('wk-min').onclick=()=>zetVenster(S.wkVenster-1);
   document.getElementById('wk-plus').onclick=()=>zetVenster(S.wkVenster+1);
   app.querySelectorAll('.kolgreep').forEach(g=>{
@@ -601,7 +650,7 @@ function rWeek(app){
       e.preventDefault(); e.stopPropagation();
       const startX=e.clientX;
       const startB=g.parentElement.getBoundingClientRect().width;
-      const alleTh=Array.from(document.querySelectorAll('#wg th[data-week]'));
+      const alleTh=Array.from(document.querySelectorAll('#wg th.wknu'));
       const beweeg=ev=>{
         const b=Math.min(500,Math.max(120,Math.round(startB+(ev.clientX-startX))));
         alleTh.forEach(t=>{t.style.minWidth=b+'px';t.style.width=b+'px';});
@@ -616,7 +665,7 @@ function rWeek(app){
       document.addEventListener('pointerup',los);
     };
   });
-  app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.view='afdelingen';render();window.scrollTo(0,0);});
+  app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.agStart=S.wkStart;S.view='afdelingen';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
   app.querySelectorAll('th[data-week]').forEach(el=>el.onclick=()=>{S.wkStart=el.dataset.week;render();});
   app.querySelectorAll('[data-weekdag]').forEach(el=>el.onclick=e=>{e.stopPropagation();S.weekStart=el.dataset.weekdag;S.weekBlok=null;S.view='weekdetail';render();window.scrollTo(0,0);});
@@ -647,7 +696,7 @@ function rWeekDetail(app){
   if(scopeBlok) h+='<div class="stil" style="margin-bottom:8px">Ingezoomd op blok "'+esc(scopeBlok.naam)+'" — <a href="#" id="w-heelweek">alle afdelingen tonen</a></div>';
   h+='<div id="wg"><table><tr class="kop"><th class="naam">Afdeling</th>';
   for(const d of dagen){ const dIso=iso(d);
-    h+='<th data-dag="'+dIso+'" title="klik voor de dagweergave" class="'+(dIso===vandaagISO()?'wknu':'')+'">'+DG[(d.getUTCDay()+6)%7]+'<br><span style="font-weight:400">'+d.getUTCDate()+'/'+(d.getUTCMonth()+1)+'</span></th>'; }
+    h+='<th data-dag="'+dIso+'" title="klik voor de dagweergave" style="min-width:150px" class="'+(dIso===vandaagISO()?'wknu':'')+'">'+DG[(d.getUTCDay()+6)%7]+'<br><span style="font-weight:400">'+d.getUTCDate()+'/'+(d.getUTCMonth()+1)+'</span></th>'; }
   h+='</tr>';
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     if(scopeBlok&&loc.id!==scopeBlok.locatie_id) continue;
@@ -671,13 +720,16 @@ function rWeekDetail(app){
           const dIso=iso(d);
           let segs='';
           for(const r of plans[afd.id]){
-            if(r.start&&r.eind&&d>=r.start&&d<=r.eind&&r.a.status!=='nvt')
-              segs+='<div class="wseg" style="background:'+kleur(r.a.naam)+';opacity:'+(r.a.status==='klaar'?0.35:1)+'" title="'+esc(r.a.naam)+'"></div>';
+            if(r.start&&r.eind&&d>=r.start&&d<=r.eind&&r.a.status!=='nvt'){
+              const bv=bedrijfVan(afd,r.a);
+              segs+='<div class="wblok" style="border-left-color:'+kleur(r.a.naam)+';opacity:'+(r.a.status==='klaar'?0.5:1)+'">'+esc(r.a.naam)+(r.a.status==='klaar'?' ✓':'')
+                +(bv?'<br><span class="stil">'+bedrijfDot(bv.naam)+esc(bv.naam)+'</span>':'')+'</div>';
+            }
           }
           const levs=S.data.leveringen.filter(l=>{ if(!l.datum||l.datum.slice(0,10)!==dIso) return false;
             return (l.afdeling_tekst||'').toLowerCase().includes(afd.code.toLowerCase())&&(l.afdeling_tekst||'').toLowerCase().includes(loc.code.split('/')[0].toLowerCase().slice(0,2)); });
-          const lev = levs.length?'<span class="wlev '+(levs.every(x=>x.ontvangen)?'ok':'')+'" title="'+esc(levs.map(x=>levBedrijfNaam(x)+' '+x.materiaal).join(', '))+'"></span>':'';
-          h+='<td><div class="wcel" data-afd="'+afd.id+'">'+segs+lev+'</div></td>';
+          for(const l of levs) segs+='<div class="wblok" style="border-left-color:'+(l.ontvangen?'#52b788':'#c1442e')+'">📦 '+esc(levBedrijfNaam(l))+' · '+esc(l.materiaal)+(l.ontvangen?' ✓':'')+'</div>';
+          h+='<td><div class="wcel breed" data-afd="'+afd.id+'">'+segs+'</div></td>';
         }
         h+='</tr>';
       }
@@ -693,7 +745,7 @@ function rWeekDetail(app){
   document.getElementById('w-terug').onclick=()=>{S.weekBlok=null;S.view='week';render();};
   const hw=document.getElementById('w-heelweek'); if(hw) hw.onclick=e=>{e.preventDefault();S.weekBlok=null;render();};
   app.querySelectorAll('th[data-dag]').forEach(el=>el.onclick=()=>{S.dag=el.dataset.dag;S.dagBlok=S.weekBlok;S.view='vandaag';render();window.scrollTo(0,0);});
-  app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.view='afdelingen';render();window.scrollTo(0,0);});
+  app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.agStart=S.weekStart;S.view='afdelingen';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
 }
 
@@ -707,19 +759,6 @@ function rAfdLijst(app){
     h+='<div class="kaart"><h2 class="klap" data-klap="'+locKey+'">'+(locDicht?'▸ ':'▾ ')+esc(loc.code)+' — '+esc(loc.naam)
       +(locDicht?' <span class="stil">('+S.data.afdelingen.filter(a=>a.locatie_id===loc.id).length+' afdelingen)</span>':'')+'</h2>';
     if(locDicht){ h+='</div>'; continue; }
-    const bOpen=dicht.has('open-bedr-'+loc.id);
-    h+='<h3 class="klap" data-klap="open-bedr-'+loc.id+'">'+(bOpen?'▾':'▸')+' 🏢 Vaste bedrijven per activiteit</h3>';
-    if(bOpen){
-      for(const cat of actCats()){
-        const an=cat.naam;
-        const t=(S.data.toewijzingen||[]).find(x=>x.locatie_id===loc.id&&x.activiteit_naam===an);
-        const naam=t&&t.bedrijf_id?bedrijfNaam(t.bedrijf_id):null;
-        h+='<div class="regel" data-toew="'+loc.id+'|'+esc(an)+'" style="cursor:pointer">'
-          +'<span class="chip" style="background:'+kleur(an)+';width:10px;height:18px;padding:0;border-radius:4px"></span>'
-          +'<span style="flex:1">'+esc(an)+'</span>'
-          +'<span class="'+(naam?'':'stil')+'">'+(naam?bedrijfDot(naam)+esc(naam):'kies bedrijf')+'</span><span style="color:var(--grijs)">›</span></div>';
-      }
-    }
     const blokken=S.data.blokken.filter(b=>b.locatie_id===loc.id).sort((a,b)=>a.sort-b.sort).concat([null]);
     for(const blok of blokken){
       const afds=S.data.afdelingen.filter(a=>a.locatie_id===loc.id&&(blok?a.blok_id===blok.id:!a.blok_id)).sort((a,b)=>a.sort-b.sort);
@@ -741,23 +780,9 @@ function rAfdLijst(app){
     }
     h+='</div>';
   }
-  h+='<div class="kaart"><h2>⚙️ Lijsten beheren</h2><div class="keuze">'
-    +'<button id="bh-act">🎨 Activiteiten ('+actCats().length+')</button>'
-    +'<button id="bh-bedr">🏢 Bedrijven ('+(S.data.bedrijven||[]).length+')</button></div>'
-    +'<div class="stil" style="margin-top:4px">Hernoemen en verwijderen van activiteiten en bedrijven.</div></div>';
   app.innerHTML=h;
-  document.getElementById('bh-act').onclick=()=>beheerSheet('act');
-  document.getElementById('bh-bedr').onclick=()=>beheerSheet('bedrijf');
   app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='lijst';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
-  app.querySelectorAll('[data-toew]').forEach(el=>el.onclick=()=>{
-    const p=el.dataset.toew.split('|'); const locId=+p[0]; const an=p[1];
-    const t=(S.data.toewijzingen||[]).find(x=>x.locatie_id===locId&&x.activiteit_naam===an);
-    const loc=S.data.locaties.find(l=>l.id===locId);
-    bedrijfKiezer('Standaard bedrijf voor "'+an+'" op '+loc.code, t?t.bedrijf_id:null, bid=>{
-      doe({action:'toewijzing_set',locatie_id:locId,activiteit_naam:an,bedrijf_id:bid}, loc.code+' — standaard bedrijf "'+an+'" → '+(bid?bedrijfNaam(bid):'geen'));
-    });
-  });
 }
 
 /* ---- Afdeling detail ---- */
@@ -810,13 +835,14 @@ function rAfdDetail(app){
       } else if(r.start&&!r.eind&&iso(r.start)===dIso){
         cel='<div class="agbalk" data-agact="'+r.a.id+'" title="start bekend, duur nog invullen" style="background:'+kleur(r.a.naam)+';opacity:.45;border:1px dashed #666"></div>';
       }
+      if(r.start&&r.eind&&dIso===iso(r.eind)) cel+='<span class="aggreep" data-greep="'+r.a.id+'" title="sleep naar links of rechts om korter of langer te maken"><i></i></span>';
       h+='<td><div class="agcel">'+cel+'</div></td>';
     }
     h+='</tr>';
   }
   h+='</table></div>';
   h+='<div class="stil" style="margin-top:4px">'+(ietsGepland
-    ?'Vol = gedaan/bezig, licht = gepland, arcering = vrije dag. Tik op een balk of activiteitnaam om dagen aan/uit te zetten, de duur of de einddatum te wijzigen.'
+    ?'Vol = gedaan/bezig, licht = gepland, arcering = vrije dag. Sleep het greepje aan het einde van een balk naar links of rechts om korter of langer te maken; tik op een balk voor alle details.'
     :'Nog niets ingepland: zet hierboven een startdatum en geef hieronder per activiteit de werkdagen op — de agenda vult zich dan vanzelf.')+'</div></div>';
   h+='<div class="kaart"><h2>Activiteiten (volgorde = planning)</h2>';
   rows.forEach((r,i)=>{
@@ -825,14 +851,15 @@ function rAfdDetail(app){
       +'<div style="display:flex;flex-direction:column;gap:2px"><button class="pijl" data-op="up" data-id="'+a.id+'" '+(i===0?'disabled style="opacity:.3"':'')+'>▲</button>'
       +'<button class="pijl" data-op="down" data-id="'+a.id+'" '+(i===rows.length-1?'disabled style="opacity:.3"':'')+'>▼</button></div>'
       +'<span class="chip" style="background:'+kleur(a.naam)+';width:10px;height:26px;padding:0;border-radius:4px"></span>'
-      +'<div class="nm'+(S.gewijzigd&&S.gewijzigd.has(a.id)?' agnieuw':'')+'"><div class="naam">'+esc(a.naam)+(S.gewijzigd&&S.gewijzigd.has(a.id)?' <span class="deadline-oud">⇢ opgeschoven</span>':'')+'</div>'
+      +'<div class="nm'+(S.gewijzigd&&S.gewijzigd.has(a.id)?' agnieuw':'')+'" data-open="'+a.id+'" style="cursor:pointer"><div class="naam">'+esc(a.naam)+(S.gewijzigd&&S.gewijzigd.has(a.id)?' <span class="deadline-oud">⇢ opgeschoven</span>':'')+'</div>'
       +'<div class="datums">'+(a.status==='nvt'?'n.v.t.':(r.start?fmt(r.start)+(r.eind?' t/m '+fmt(r.eind):' · duur nog invullen'):'nog niet gepland'))
       +(a.handmatige_start?' · 📌 vast op '+fmt(pd(a.handmatige_start)):'')
       +((a.skipdagen&&a.skipdagen.length)?' · '+a.skipdagen.length+' vrije dag(en)':'')
-      +(function(){const b=bedrijfVan(afd,a); return b?' · '+bedrijfDot(b.naam)+esc(b.naam)+(b.afwijkend?' •':''):'';})()+'</div></div>'
+      +(function(){const b=bedrijfVan(afd,a); return b?' · '+bedrijfDot(b.naam)+esc(b.naam)+(b.afwijkend?' •':''):'';})()
+      +(a.notitie?' · &#8618; '+esc(a.notitie):'')+'</div></div>'
       +'<span class="stepper"><button class="stap" data-min="'+a.id+'">−</button><input type="number" min="0" max="99" data-duur="'+a.id+'" value="'+(a.duur==null?'':a.duur)+'" placeholder="dgn" title="werkdagen"><button class="stap" data-plus="'+a.id+'">+</button></span>'
       +statusKnop(a)
-      +'<button class="pijl" data-op="meer" data-id="'+a.id+'">⋯</button>'
+      +'<button class="pijl" data-op="meer" data-id="'+a.id+'">›</button>'
       +'</div>';
   });
   const inAfd=new Set(rows.map(r=>r.a.naam));
@@ -841,6 +868,7 @@ function rAfdDetail(app){
     +(beschikbaar.length?'<div class="keuze">'+beschikbaar.map(c=>'<button data-actcat="'+c.id+'"><i class="ldot" style="background:'+c.kleur+'"></i> '+esc(c.naam)+'</button>').join('')+'</div>':'')
     +'<div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="nieuw-act" placeholder="of een nieuwe activiteit…" style="flex:1"><button class="knop klein" id="nieuw-act-knop">+ aanmaken</button></div>'
     +'<div class="stil" style="margin-top:4px">Een nieuwe activiteit krijgt automatisch een eigen kleur en verschijnt overal (weekoverzicht, voortgang, bedrijven per activiteit).</div></div>';
+  h+='<div style="margin-top:10px"><button class="knop licht" id="afd-kopieer">&#10697; Werkdagen overnemen van een andere afdeling&hellip;</button></div>';
   h+='</div>';
   const afdFotos=(S.data.fotos||[]).filter(f=>f.afdeling_id===afd.id).slice(0,12);
   h+='<div class="kaart"><h2>📷 Foto&#39;s</h2>'+(afdFotos.length?fotoThumbs(afdFotos,true):'<div class="leeg">Nog geen foto&#39;s bij deze afdeling.</div>')
@@ -852,7 +880,39 @@ function rAfdDetail(app){
   document.getElementById('ag-vorig').onclick=()=>{const d=pd(S.agStart);d.setUTCDate(d.getUTCDate()-14);S.agStart=iso(d);render();};
   document.getElementById('ag-volgend').onclick=()=>{const d=pd(S.agStart);d.setUTCDate(d.getUTCDate()+14);S.agStart=iso(d);render();};
   document.getElementById('ag-nu').onclick=()=>{S.agStart=iso(maandagVan(pd(vandaagISO())));render();};
-  app.querySelectorAll('[data-agact]').forEach(el=>el.onclick=()=>dagenPopup(afd.id,+el.dataset.agact));
+  app.querySelectorAll('[data-agact]').forEach(el=>el.onclick=()=>actKaart(afd.id,+el.dataset.agact));
+  app.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>actKaart(afd.id,+el.dataset.open));
+  app.querySelectorAll('.aggreep').forEach(g=>{
+    g.onclick=e=>e.stopPropagation();
+    g.onpointerdown=e=>{
+      e.preventDefault(); e.stopPropagation();
+      const actId=+g.dataset.greep;
+      const r=rows.find(x=>x.a.id===actId);
+      if(!r||!r.start||!r.eind) return;
+      const cellen=Array.from(g.closest('tr').querySelectorAll('td')).slice(1).map(td=>td.querySelector('.agcel'));
+      let doel=-1;
+      const vindKol=x=>{
+        for(let i=0;i<cellen.length;i++){ const b=cellen[i].getBoundingClientRect(); if(x>=b.left&&x<=b.right) return i; }
+        return -1;
+      };
+      const teken=()=>cellen.forEach((c,i)=>c.classList.toggle('agdoel', doel>=0&&dagen[i]>=r.start&&i<=doel));
+      const beweeg=ev=>{ const i=vindKol(ev.clientX); if(i>=0&&dagen[i]>=r.start){ doel=i; teken(); } };
+      const los=()=>{
+        document.removeEventListener('pointermove',beweeg);
+        document.removeEventListener('pointerup',los);
+        cellen.forEach(c=>c.classList.remove('agdoel'));
+        if(doel<0) return;
+        const nieuwEind=dagen[doel];
+        let n=0;
+        for(let d=new Date(r.start); d<=nieuwEind; d.setUTCDate(d.getUTCDate()+1)) if(werkdagAct(d,afd,r.a)) n++;
+        if(n<1) n=1;
+        if(n===r.a.duur) return;
+        doe({action:'act_update',id:actId,fields:{duur:n}}, afdNaam(afd)+' — "'+r.a.naam+'" duur → '+n+' wd (gesleept)');
+      };
+      document.addEventListener('pointermove',beweeg);
+      document.addEventListener('pointerup',los);
+    };
+  });
   document.getElementById('afd-actief').onchange=e=>doe({action:'afd_update',id:afd.id,fields:{actief:e.target.checked}}, afdNaam(afd)+' '+(e.target.checked?'geactiveerd':'op inactief gezet'));
   document.getElementById('afd-start').onchange=e=>doe({action:'afd_update',id:afd.id,fields:{startdatum:e.target.value||null}}, afdNaam(afd)+' startdatum → '+(e.target.value||'leeg'));
   document.getElementById('afd-notitie').onchange=e=>doe({action:'afd_update',id:afd.id,fields:{notitie:e.target.value}});
@@ -881,7 +941,7 @@ function rAfdDetail(app){
       doe({action:'act_reorder',afdeling_id:afd.id,ids}, afdNaam(afd)+' volgorde gewijzigd'); }
     else if(op==='down'&&i<acts.length-1){ const ids=acts.map(x=>x.id); [ids[i+1],ids[i]]=[ids[i],ids[i+1]];
       doe({action:'act_reorder',afdeling_id:afd.id,ids}, afdNaam(afd)+' volgorde gewijzigd'); }
-    else if(op==='meer'){ meerMenu(acts[i],afd); }
+    else if(op==='meer'){ actKaart(afd.id,id); }
   });
   app.querySelectorAll('button[data-actcat]').forEach(b=>b.onclick=()=>{
     const c=actCats().find(x=>x.id===+b.dataset.actcat);
@@ -894,36 +954,52 @@ function rAfdDetail(app){
     catch(e){ toast('Aanmaken mislukt'); return; }
     doe({action:'act_add',afdeling_id:afd.id,naam:v}, afdNaam(afd)+' — activiteit "'+v+'" toegevoegd');
   };
+  document.getElementById('afd-kopieer').onclick=()=>kopieerDuren(afd.id);
 }
-function dagenPopup(afdId, actId){
+function actKaart(afdId, actId){
   const sh=document.getElementById('sheet');
   const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';render();};
+  let zekerDel=false;
   const maak=()=>{
     const afd=S.data.afdelingen.find(x=>x.id===afdId);
     const a=S.data.activiteiten.find(x=>x.id===actId);
     if(!afd||!a){ dichtFn(); return; }
     const rows=planAfdeling(afd);
     const r=rows.find(x=>x.a.id===actId);
-    if(!r||!r.start){ toast('Zet eerst de startdatum van de afdeling'); dichtFn(); return; }
-    let x='<div class="sheetkaart"><div class="sheettitel"><span class="chip" style="background:'+kleur(a.naam)+'">'+esc(a.naam)+'</span> '+esc(afdNaam(afd))+'</div>';
+    const gepland=!!(r&&r.start);
+    let x='<div class="sheetkaart"><div class="sheettitel"><span class="chip" style="background:'+kleur(a.naam)+'">'+esc(a.naam)+'</span> '+esc(afdNaam(afd))+' '+statusKnop(a)+'</div>';
     x+='<div class="sheetrij"><label>Werkdagen</label><span class="stepper"><button class="stap" id="dp-min">−</button><input type="number" id="dp-duur" min="0" max="99" value="'+(a.duur==null?'':a.duur)+'"><button class="stap" id="dp-plus">+</button></span>'
-      +'<label>Klaar op</label><input type="date" id="dp-eind" value="'+(r.eind?iso(r.eind):'')+'"></div>';
-    x+='<div class="stil">'+fmt(r.start)+' t/m '+(r.eind?fmt(r.eind):'?')+(a.duur!=null?' · '+a.duur+' werkdagen':' · duur nog invullen')
-      +'<br>Tik een dag uit als er die dag niet gewerkt wordt — de einddatum en het vervolgwerk schuiven automatisch mee.</div>';
-    if(r.eind&&a.duur){
-      x+='<div class="keuze" style="max-height:38vh;overflow:auto">';
-      const sk=new Set(a.skipdagen||[]);
-      for(let d=new Date(r.start); d<=r.eind; d.setUTCDate(d.getUTCDate()+1)){
-        const dIso=iso(d);
-        x+='<button data-dpdag="'+dIso+'" class="'+(sk.has(dIso)?'':'aan')+'">'+fmt(d)+'</button>';
+      +(gepland?'<label>Klaar op</label><input type="date" id="dp-eind" value="'+(r.eind?iso(r.eind):'')+'">':'')+'</div>';
+    if(gepland){
+      x+='<div class="stil">'+fmt(r.start)+' t/m '+(r.eind?fmt(r.eind):'?')+(a.duur!=null?' · '+a.duur+' werkdagen':' · duur nog invullen')
+        +'<br>Tik een dag uit als er die dag niet gewerkt wordt — de einddatum en het vervolgwerk schuiven automatisch mee.</div>';
+      if(r.eind&&a.duur){
+        x+='<div class="keuze" style="max-height:32vh;overflow:auto">';
+        const sk=new Set(a.skipdagen||[]);
+        for(let d=new Date(r.start); d<=r.eind; d.setUTCDate(d.getUTCDate()+1)){
+          const dIso=iso(d);
+          x+='<button data-dpdag="'+dIso+'" class="'+(sk.has(dIso)?'':'aan')+'">'+fmt(d)+'</button>';
+        }
+        x+='</div>';
+        if(sk.size) x+='<button class="knop klein licht" id="dp-wis">alle vrije dagen wissen</button>';
       }
-      x+='</div>';
-      if(sk.size) x+='<button class="knop klein licht" id="dp-wis">alle vrije dagen wissen</button>';
+    } else {
+      x+='<div class="stil">Nog niet ingepland — zet de startdatum van de afdeling, of geef hieronder een 📌 vaste startdatum.</div>';
     }
+    x+='<div class="sheetrij"><label>🏢 Bedrijf</label><button class="knop licht klein" id="ak-bedrijf">'
+      +(function(){const b=bedrijfVan(afd,a); return b? bedrijfDot(b.naam)+esc(b.naam)+(b.afwijkend?' (afwijkend)':' (standaard locatie)') : 'kiezen…';})()+'</button></div>';
+    x+='<div class="sheetrij"><label>📌 Vaste start</label><input type="date" id="ak-vast" value="'+(a.handmatige_start?a.handmatige_start.slice(0,10):'')+'">'
+      +'<button class="knop klein" id="ak-vast-ok">Zet vast</button>'
+      +(a.handmatige_start?'<button class="knop klein licht" id="ak-vast-wis">Wis 📌</button>':'')+'</div>';
+    if(gepland&&r.eind&&a.duur&&a.duur>=2) x+='<button class="knop licht breed" id="dp-overdracht">&#8618; Vanaf een datum overdragen aan ander bedrijf&hellip;</button>';
+    x+='<div class="sheetrij"><button class="knop licht" id="ak-nvt">'+(a.status==='nvt'?'Weer actief maken':'Markeer als n.v.t.')+'</button>'
+      +'<button class="knop rood" id="ak-del">'+(zekerDel?'Zeker weten? Tik nogmaals':'Verwijderen')+'</button></div>';
     x+='<button class="knop licht breed" id="dp-sluit">Klaar</button></div>';
     sh.innerHTML=x; sh.style.display='flex';
     sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
     document.getElementById('dp-sluit').onclick=dichtFn;
+    const ov=document.getElementById('dp-overdracht');
+    if(ov) ov.onclick=()=>overdrachtForm(afdId,actId);
     const update=async(fields,log)=>{
       const oud=planAfdeling(afd);
       try{
@@ -939,6 +1015,10 @@ function dagenPopup(afdId, actId){
         maak();
       }catch(e){ toast(e.message||'Opslaan mislukt'); }
     };
+    sh.querySelectorAll('.statusknop[data-act]').forEach(b=>b.onclick=()=>{
+      const volg={todo:'bezig',bezig:'klaar',klaar:'todo',nvt:'todo'}[a.status];
+      update({status:volg}, afdNaam(afd)+' — "'+a.naam+'" → '+volg);
+    });
     sh.querySelectorAll('button[data-dpdag]').forEach(b=>b.onclick=()=>{
       const sk=new Set(a.skipdagen||[]);
       if(sk.has(b.dataset.dpdag)) sk.delete(b.dataset.dpdag); else sk.add(b.dataset.dpdag);
@@ -952,7 +1032,8 @@ function dagenPopup(afdId, actId){
       const v=e.target.value===''?null:Math.max(0,+e.target.value);
       update({duur:v}, afdNaam(afd)+' — "'+a.naam+'" duur → '+(v==null?'leeg':v+' wd'));
     };
-    document.getElementById('dp-eind').onchange=e=>{
+    const eindInp=document.getElementById('dp-eind');
+    if(eindInp) eindInp.onchange=e=>{
       const eindIso=e.target.value;
       if(!eindIso) return;
       const eind=pd(eindIso);
@@ -962,46 +1043,122 @@ function dagenPopup(afdId, actId){
       for(let d=new Date(r.start); d<=eind; d.setUTCDate(d.getUTCDate()+1)){ if(!sk.has(iso(d))&&werkdag(d,afd.werkdagen)) n++; }
       update({duur:n}, afdNaam(afd)+' — "'+a.naam+'" klaar op '+eindIso+' → duur '+n+' wd');
     };
+    document.getElementById('ak-bedrijf').onclick=()=>{
+      bedrijfKiezer('Bedrijf voor "'+a.naam+'" — '+afdNaam(afd), a.bedrijf_id||null, bid=>{
+        update({bedrijf_id:bid}, afdNaam(afd)+' — "'+a.naam+'" bedrijf → '+(bid?bedrijfNaam(bid):'standaard locatie'));
+      });
+    };
+    document.getElementById('ak-vast-ok').onclick=()=>{
+      const d=document.getElementById('ak-vast').value;
+      if(d) update({handmatige_start:d}, afdNaam(afd)+' — "'+a.naam+'" vaste start → '+d);
+    };
+    const vw=document.getElementById('ak-vast-wis');
+    if(vw) vw.onclick=()=>update({handmatige_start:null}, afdNaam(afd)+' — "'+a.naam+'" vaste start gewist');
+    document.getElementById('ak-nvt').onclick=()=>{
+      const nieuw=a.status==='nvt'?'todo':'nvt';
+      update({status:nieuw}, afdNaam(afd)+' — "'+a.naam+'" → '+nieuw);
+    };
+    document.getElementById('ak-del').onclick=()=>{
+      if(!zekerDel){ zekerDel=true; maak(); return; }
+      dichtFn(); doe({action:'act_delete',id:a.id}, afdNaam(afd)+' — activiteit "'+a.naam+'" verwijderd');
+    };
   };
   maak();
 }
 
-function meerMenu(a,afd){
+function overdrachtForm(afdId, actId){
   const sh=document.getElementById('sheet');
-  sh.innerHTML='<div class="sheetkaart"><div class="sheettitel">'+esc(a.naam)+' — '+esc(afdNaam(afd))+'</div>'
-    +'<div class="sheetrij"><label>📌 Vaste startdatum</label><input type="date" id="sh-datum" value="'+(a.handmatige_start?a.handmatige_start.slice(0,10):'')+'">'
-    +'<button class="knop klein" id="sh-datum-ok">Zet vast</button>'
-    +(a.handmatige_start?'<button class="knop klein licht" id="sh-datum-wis">Wis 📌</button>':'')+'</div>'
-    +'<div class="sheetrij"><label>🏢 Bedrijf</label><button class="knop licht klein" id="sh-bedrijf">'
-    +(function(){const b=bedrijfVan(afd,a); return b? bedrijfDot(b.naam)+esc(b.naam)+(b.afwijkend?' (afwijkend)':' (standaard locatie)') : 'kiezen…';})()+'</button></div>'
-    +'<button class="knop licht breed" id="sh-nvt">'+(a.status==='nvt'?'Weer actief maken':'Markeer als n.v.t.')+'</button>'
-    +'<button class="knop rood breed" id="sh-del">Verwijderen</button>'
-    +'<button class="knop licht breed" id="sh-sluit">Sluiten</button></div>';
+  const afd=S.data.afdelingen.find(x=>x.id===afdId);
+  const a=S.data.activiteiten.find(x=>x.id===actId);
+  if(!afd||!a) return;
+  const rows=planAfdeling(afd);
+  const r=rows.find(x=>x.a.id===actId);
+  if(!r||!r.start||!r.eind||!a.duur||a.duur<2){ toast('Overdragen kan alleen bij een geplande activiteit van minstens 2 werkdagen'); return; }
+  const minD=new Date(r.start); minD.setUTCDate(minD.getUTCDate()+1);
+  let std=pd(vandaagISO()); std.setUTCDate(std.getUTCDate()+1);
+  if(std<minD) std=new Date(minD);
+  if(std>r.eind) std=new Date(r.eind);
+  const b=bedrijfVan(afd,a);
+  sh.innerHTML='<div class="sheetkaart"><div class="sheettitel"><span class="chip" style="background:'+kleur(a.naam)+'">'+esc(a.naam)+'</span> overdragen — '+esc(afdNaam(afd))+'</div>'
+    +'<div class="stil">'+(b?bedrijfDot(b.naam)+esc(b.naam):'Het huidige bedrijf')+' werkt t/m de dag v&oacute;&oacute;r de gekozen datum; het nieuwe bedrijf doet de resterende werkdagen en rondt af. Vervolgwerk schuift automatisch mee.</div>'
+    +'<div class="sheetrij"><label>Nieuw bedrijf start op</label><input type="date" id="ov-datum" value="'+iso(std)+'" min="'+iso(minD)+'" max="'+iso(r.eind)+'"></div>'
+    +'<div class="stil" id="ov-info"></div>'
+    +'<button class="knop breed" id="ov-kies">Kies het nieuwe bedrijf&hellip;</button>'
+    +'<button class="knop licht breed" id="ov-terug">Annuleren</button></div>';
   sh.style.display='flex';
-  const dicht=()=>{sh.style.display='none';sh.innerHTML='';};
-  sh.onclick=e=>{ if(e.target===sh) dicht(); };
-  document.getElementById('sh-sluit').onclick=dicht;
-  document.getElementById('sh-datum-ok').onclick=()=>{
-    const d=document.getElementById('sh-datum').value;
-    if(d){ dicht(); doe({action:'act_update',id:a.id,fields:{handmatige_start:d}}, afdNaam(afd)+' — "'+a.naam+'" vaste start → '+d); }
+  sh.onclick=e=>{ if(e.target===sh){ sh.style.display='none'; sh.innerHTML=''; } };
+  const telling=()=>{
+    const dIso=document.getElementById('ov-datum').value;
+    const dOv=pd(dIso);
+    if(!dOv||dOv<=r.start||dOv>r.eind) return null;
+    let n1=0;
+    for(let d=new Date(r.start); d<dOv; d.setUTCDate(d.getUTCDate()+1)){ if(werkdagAct(d,afd,a)) n1++; }
+    const rest=a.duur-n1;
+    if(n1<1||rest<1) return null;
+    return {dIso:dIso,dOv:dOv,n1:n1,rest:rest};
   };
-  const wis=document.getElementById('sh-datum-wis');
-  if(wis) wis.onclick=()=>{ dicht(); doe({action:'act_update',id:a.id,fields:{handmatige_start:null}}, afdNaam(afd)+' — "'+a.naam+'" vaste start gewist'); };
-  document.getElementById('sh-bedrijf').onclick=()=>{
-    dicht();
-    bedrijfKiezer('Bedrijf voor "'+a.naam+'" — '+afdNaam(afd), a.bedrijf_id||null, bid=>{
-      doe({action:'act_update',id:a.id,fields:{bedrijf_id:bid}}, afdNaam(afd)+' — "'+a.naam+'" bedrijf → '+(bid?bedrijfNaam(bid):'standaard locatie'));
+  const info=()=>{
+    const t=telling();
+    document.getElementById('ov-info').textContent = t
+      ? 'Huidig bedrijf: '+t.n1+' werkdag(en), t/m '+fmt(new Date(t.dOv.getTime()-86400000))+'. Nieuw bedrijf: '+t.rest+' werkdag(en).'
+      : 'Kies een datum na de start en uiterlijk op de einddatum.';
+  };
+  info();
+  document.getElementById('ov-datum').onchange=info;
+  document.getElementById('ov-terug').onclick=()=>actKaart(afdId,actId);
+  document.getElementById('ov-kies').onclick=()=>{
+    const t=telling();
+    if(!t){ toast('Kies eerst een geldige datum'); return; }
+    const skips=a.skipdagen||[];
+    bedrijfKiezer('Wie neemt "'+a.naam+'" over vanaf '+fmt(t.dOv)+'?', null, async bid=>{
+      if(bid==null){ toast('Overdragen geannuleerd: geen bedrijf gekozen'); return; }
+      try{
+        await api({action:'act_splits',id:actId,
+          duur_oud:t.n1,
+          skipdagen_oud:skips.filter(s=>s<t.dIso),
+          nieuw:{duur:t.rest,bedrijf_id:bid,skipdagen:skips.filter(s=>s>=t.dIso),
+            notitie:'overgenomen van '+(b?b.naam:'vorig bedrijf')+' per '+t.dIso},
+          log:afdNaam(afd)+' — "'+a.naam+'" per '+t.dIso+' overgedragen aan '+(bedrijfNaam(bid)||'?')+' ('+t.n1+' + '+t.rest+' wd)'});
+        await laad(); S.gewijzigd=null; render();
+        toast((bedrijfNaam(bid)||'Het nieuwe bedrijf')+' gaat verder vanaf '+fmt(t.dOv)+' en rondt af');
+      }catch(e){ toast(e.message||'Overdragen mislukt'); }
     });
   };
-  document.getElementById('sh-nvt').onclick=()=>{
-    const nieuw=a.status==='nvt'?'todo':'nvt';
-    dicht(); doe({action:'act_update',id:a.id,fields:{status:nieuw}}, afdNaam(afd)+' — "'+a.naam+'" → '+nieuw);
-  };
-  let zeker=false;
-  document.getElementById('sh-del').onclick=e=>{
-    if(!zeker){ zeker=true; e.target.textContent='Zeker weten? Tik nogmaals om te verwijderen'; return; }
-    dicht(); doe({action:'act_delete',id:a.id}, afdNaam(afd)+' — activiteit "'+a.naam+'" verwijderd');
-  };
+}
+
+function kopieerDuren(afdId){
+  const sh=document.getElementById('sheet');
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
+  const doel=S.data.activiteiten.filter(z=>z.afdeling_id===afdId);
+  let x='<div class="sheetkaart"><div class="sheettitel">&#10697; Werkdagen overnemen</div>'
+    +'<div class="stil">Kies de afdeling waarvan je de werkdagen per activiteit wilt overnemen (het getal = hoeveel activiteiten matchen op naam). Vrije dagen, bedrijven en statussen gaan niet mee, en je kunt daarna alles gewoon per activiteit bijstellen.</div>';
+  let opties=0;
+  for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
+    let rijen='';
+    for(const bron of S.data.afdelingen.filter(z=>z.locatie_id===loc.id&&z.id!==afdId).sort((a,b)=>a.sort-b.sort)){
+      const acts=S.data.activiteiten.filter(z=>z.afdeling_id===bron.id&&z.duur!=null);
+      if(!acts.length) continue;
+      const n=doel.filter(d=>acts.some(z=>z.naam===d.naam)).length;
+      if(!n) continue;
+      opties++;
+      rijen+='<button data-kd="'+bron.id+'">'+esc(isNaN(+bron.code)?bron.code:('afd '+bron.code))+' <span class="stil">('+n+')</span></button>';
+    }
+    if(rijen) x+='<div style="font-weight:600;font-size:13px;margin-top:4px">'+esc(loc.code)+'</div><div class="keuze">'+rijen+'</div>';
+  }
+  if(!opties) x+='<div class="leeg">Geen andere afdeling heeft al werkdagen ingevuld.</div>';
+  x+='<button class="knop licht breed" id="kd-sluit">Annuleren</button></div>';
+  sh.innerHTML=x; sh.style.display='flex';
+  sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+  document.getElementById('kd-sluit').onclick=dichtFn;
+  sh.querySelectorAll('button[data-kd]').forEach(b=>b.onclick=()=>{
+    const bronAfd=S.data.afdelingen.find(z=>z.id===+b.dataset.kd);
+    const acts=S.data.activiteiten.filter(z=>z.afdeling_id===bronAfd.id&&z.duur!=null);
+    const n=doel.filter(d=>acts.some(z=>z.naam===d.naam)).length;
+    dichtFn();
+    doe({action:'act_kopieer',afdeling_id:afdId,van_afdeling_id:bronAfd.id},
+      afdNaam(S.data.afdelingen.find(z=>z.id===afdId))+' — werkdagen overgenomen van '+afdNaam(bronAfd)+' ('+n+' activiteiten)');
+    toast('Werkdagen van '+n+' activiteit(en) overgenomen van '+afdNaam(bronAfd));
+  });
 }
 
 /* ---- Leveringen ---- */
@@ -1033,15 +1190,16 @@ function rLeveringen(app){
       const d=new Date(w); d.setUTCDate(d.getUTCDate()+i);
       const dIso=iso(d);
       const dagLevs=gefilterd.filter(l=>l.datum&&l.datum.slice(0,10)===dIso);
-      const uniq=Array.from(new Set(dagLevs.map(l=>levBedrijfNaam(l))));
       h+='<div class="kaldag'+(d.getUTCMonth()===mnd-1?'':' buiten')+(dIso===vandaag?' nu':'')+(S.levDag===dIso?' sel':'')+'" data-ldag="'+dIso+'">'
         +'<div class="kalnr">'+d.getUTCDate()+'</div>'
-        +'<div class="kaldots">'+uniq.slice(0,4).map(n=>'<i class="ldot" style="background:'+levKleur(n)+';opacity:'+(dagLevs.filter(l=>levBedrijfNaam(l)===n).every(l=>l.ontvangen)?0.35:1)+'" title="'+esc(n)+'"></i>').join('')
-        +(uniq.length>4?'<span class="stil">+'+(uniq.length-4)+'</span>':'')+'</div></div>';
+        +dagLevs.slice(0,3).map(function(l){ const n=levBedrijfNaam(l);
+          return '<div class="kalbalk'+(l.ontvangen?' ok':'')+'" style="border-left-color:'+levKleur(n)+'" title="'+esc(n+' · '+l.materiaal+(l.afdeling_tekst?' · '+l.afdeling_tekst:''))+'">'+esc(n)+' · '+esc(l.materiaal)+(l.ontvangen?' ✓':'')+'</div>'; }).join('')
+        +(dagLevs.length>3?'<div class="stil" style="font-size:10px;margin-top:2px">+'+(dagLevs.length-3)+' meer</div>':'')
+        +'</div>';
     }
     h+='</div>';
   }
-  h+='<div class="stil" style="margin-top:6px">Stip = levering (kleur per bedrijf, vervaagd = ontvangen). Tik een dag voor de details.</div></div>';
+  h+='<div class="stil" style="margin-top:6px">Balkje = levering met bedrijf en materiaal (kleur per bedrijf, vervaagd = ontvangen). Tik een dag voor de details.</div></div>';
   if(S.levDag){
     const dagLevs=gefilterd.filter(l=>l.datum&&l.datum.slice(0,10)===S.levDag);
     h+='<div class="kaart"><h2>📦 '+fmtLang(pd(S.levDag))+'</h2>'
@@ -1280,9 +1438,11 @@ function rVoortgang(app){
 function rInbox(app){
   const open=openVoorstellen();
   const besloten=S.data.voorstellen.filter(v=>v.status!=='open').slice(0,10);
-  let h='<div class="kaart"><h2>📬 Voorstellen uit de mail</h2><div class="stil" style="margin-bottom:8px">Claude leest hagelschade@kwekerijbaas.nl en zet hier voorstellen neer. Niets wordt doorgevoerd zonder jouw akkoord.</div>';
+  let h='<div class="kaart"><h2>📬 Voorstellen uit de mail</h2><div class="stil" style="margin-bottom:8px">Claude leest hagelschade@kwekerijbaas.nl en zet hier voorstellen neer. Niets wordt doorgevoerd zonder jouw akkoord.</div>'
+    +'<div style="margin-bottom:8px"><button class="knop licht klein" id="vs-plak">📋 Mail plakken</button></div>';
   h+=open.length?open.map(v=>'<div class="kaart voorstel"><div class="bron">'+esc(v.bron)+'</div><div>'+esc(v.omschrijving)+'</div>'
-    +'<div class="knoppen"><button class="knop klein" data-ok="'+v.id+'">✓ Overnemen</button><button class="knop klein licht" data-nee="'+v.id+'">Afwijzen</button></div></div>').join('')
+    +((v.payload&&v.payload.type==='mail'&&v.payload.tekst)?'<details><summary class="stil" style="cursor:pointer">volledige tekst</summary><div class="stil" style="white-space:pre-wrap;max-height:40vh;overflow:auto">'+esc(v.payload.tekst)+'</div></details>':'')
+    +'<div class="knoppen"><button class="knop klein" data-ok="'+v.id+'">✓ Overnemen</button><button class="knop klein licht" data-wz="'+v.id+'">✎ Aanpassen</button><button class="knop klein licht" data-nee="'+v.id+'">Afwijzen</button></div></div>').join('')
     :'<div class="leeg">Geen open voorstellen. 👍</div>';
   h+='</div>';
   if(besloten.length){ h+='<div class="kaart"><h2>Eerder besloten</h2>'+besloten.map(v=>'<div class="regel"><span style="flex:1">'+esc(v.omschrijving)+'<br><span class="stil">'+esc(v.bron)+'</span></span><span class="stil">'+(v.status==='geaccepteerd'?'✓ overgenomen':'afgewezen')+(v.besluit_door?' door '+esc(v.besluit_door):'')+'</span></div>').join('')+'</div>'; }
@@ -1291,7 +1451,85 @@ function rInbox(app){
     +'</details></div>';
   app.innerHTML=h;
   app.querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>doe({action:'voorstel_besluit',id:+b.dataset.ok,besluit:'geaccepteerd'},'Voorstel #'+b.dataset.ok+' overgenomen'));
+  app.querySelectorAll('[data-wz]').forEach(b=>b.onclick=()=>voorstelBewerken(+b.dataset.wz));
   app.querySelectorAll('[data-nee]').forEach(b=>b.onclick=()=>doe({action:'voorstel_besluit',id:+b.dataset.nee,besluit:'afgewezen'},'Voorstel #'+b.dataset.nee+' afgewezen'));
+  document.getElementById('vs-plak').onclick=plakSheet;
+}
+
+function plakSheet(){
+  const sh=document.getElementById('sheet');
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
+  sh.innerHTML='<div class="sheetkaart"><div class="sheettitel">📋 Mail plakken</div>'
+    +'<div class="stil">Kopieer de tekst van een mail (of ander bericht) en plak hem hieronder. Hij komt als voorstel in de Inbox; daarna kun je hem aanpassen en overnemen. De uurlijkse mail-lezer kijkt er ook naar en zet er zo mogelijk een kant-en-klaar leveringsvoorstel naast.</div>'
+    +'<textarea id="pl-tekst" rows="9" style="width:100%;box-sizing:border-box;border:1.5px solid var(--lijn);border-radius:8px;padding:8px;font:inherit" placeholder="plak hier de mailtekst&hellip;"></textarea>'
+    +'<button class="knop breed" id="pl-ok">Toevoegen aan Inbox</button>'
+    +'<button class="knop licht breed" id="pl-annuleer">Annuleren</button></div>';
+  sh.style.display='flex';
+  sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+  document.getElementById('pl-annuleer').onclick=dichtFn;
+  document.getElementById('pl-ok').onclick=()=>{
+    const t=document.getElementById('pl-tekst').value.trim();
+    if(!t){ toast('Plak eerst de tekst'); return; }
+    dichtFn();
+    doe({action:'mail_plak',tekst:t}, 'Mail geplakt in de Inbox');
+  };
+}
+
+function voorstelBewerken(vId){
+  const v=S.data.voorstellen.find(x=>x.id===vId);
+  if(!v) return;
+  const sh=document.getElementById('sheet');
+  const isLev=v.payload&&v.payload.type==='levering';
+  const w=isLev?Object.assign({},v.payload.fields||{}):{omschrijving:v.omschrijving};
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
+  const lees=()=>{
+    const el=id=>document.getElementById(id);
+    if(isLev){
+      w.datum=el('vb-datum').value||null;
+      w.materiaal=el('vb-mat').value.trim();
+      w.afdeling_tekst=el('vb-afd').value.trim();
+      w.omschrijving=el('vb-oms').value.trim();
+    } else {
+      w.omschrijving=el('vb-oms').value.trim();
+    }
+  };
+  const maak=()=>{
+    let x='<div class="sheetkaart"><div class="sheettitel">✎ Voorstel aanpassen en overnemen</div>'
+      +'<div class="stil">'+esc(v.bron)+'</div>';
+    if(isLev){
+      const bNaam=w.bedrijf_id?(bedrijfNaam(w.bedrijf_id)||''):'';
+      x+='<div class="sheetrij"><label>Datum</label><input type="date" id="vb-datum" value="'+esc(String(w.datum||'').slice(0,10))+'"></div>'
+        +'<div class="sheetrij"><label>Materiaal</label><input type="text" id="vb-mat" value="'+esc(w.materiaal||'')+'" style="flex:1"></div>'
+        +'<div class="sheetrij"><label>Afdeling(en)</label><input type="text" id="vb-afd" value="'+esc(w.afdeling_tekst||'')+'" style="flex:1"></div>'
+        +'<div class="sheetrij"><label>Omschrijving</label><input type="text" id="vb-oms" value="'+esc(w.omschrijving||'')+'" style="flex:1"></div>'
+        +'<div class="sheetrij"><label>Bedrijf</label><button class="knop licht klein" id="vb-bedrijf">'
+        +(bNaam?bedrijfDot(bNaam)+esc(bNaam):(w.leverancier?esc(w.leverancier):'kiezen…'))+'</button></div>';
+    } else {
+      x+='<div class="stil">Dit voorstel is een melding zonder levering; pas de tekst aan zoals jij hem wilt bewaren.</div>'
+        +'<div class="sheetrij"><label>Tekst</label><input type="text" id="vb-oms" value="'+esc(w.omschrijving||'')+'" style="flex:1"></div>';
+    }
+    x+='<button class="knop breed" id="vb-ok">✓ Overnemen met deze wijzigingen</button>'
+      +'<button class="knop licht breed" id="vb-annuleer">Annuleren</button></div>';
+    sh.innerHTML=x; sh.style.display='flex';
+    sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+    document.getElementById('vb-annuleer').onclick=dichtFn;
+    const bk=document.getElementById('vb-bedrijf');
+    if(bk) bk.onclick=()=>{
+      lees();
+      bedrijfKiezer('Bedrijf voor deze levering', w.bedrijf_id||null, bid=>{
+        w.bedrijf_id=bid;
+        if(bid) w.leverancier=bedrijfNaam(bid)||w.leverancier;
+        maak();
+      });
+    };
+    document.getElementById('vb-ok').onclick=()=>{
+      lees(); dichtFn();
+      const req={action:'voorstel_besluit',id:v.id,besluit:'geaccepteerd'};
+      if(isLev) req.fields=w; else req.omschrijving=w.omschrijving;
+      doe(req,'Voorstel #'+v.id+' aangepast en overgenomen');
+    };
+  };
+  maak();
 }
 
 /* ---------- start ---------- */
