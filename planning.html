@@ -62,9 +62,12 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .wcel.breed{height:auto;min-height:34px;display:block;padding:3px 4px}
 .wblok{font-size:11px;line-height:1.35;background:#fff;border:1px solid var(--lijn);border-left-width:4px;border-radius:6px;padding:3px 6px;margin:2px 0;white-space:normal;text-align:left}
 /* afdeling-agenda */
-.agcel{min-height:24px;display:flex;align-items:center;justify-content:center;gap:1px;padding:1px}
+.agcel{min-height:24px;display:flex;align-items:center;justify-content:center;gap:1px;padding:1px;position:relative}
+.agcel.agdoel{background:rgba(45,106,79,.16)}
 .agbalk{height:16px;width:100%;min-width:18px;border-radius:3px;cursor:pointer}
 .agbalk.agnieuw{outline:2px solid var(--oranje)}
+.aggreep{position:absolute;top:50%;right:-2px;transform:translateY(-50%);width:18px;height:26px;cursor:col-resize;touch-action:none;z-index:3;display:flex;align-items:center;justify-content:center}
+.aggreep i{width:4px;height:15px;border-radius:2px;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.35)}
 .agskip{height:16px;width:100%;min-width:18px;border-radius:3px;background:repeating-linear-gradient(45deg,#e8e8e8,#e8e8e8 3px,#fff 3px,#fff 6px);cursor:pointer}
 .aglev{font-size:13px}
 .aglev.ok{opacity:.45}
@@ -117,6 +120,8 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .kaldag.sel{background:#e8f0ec;border-color:var(--groen)}
 .kalnr{font-size:11px;color:var(--grijs)}
 .kaldots{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
+.kalbalk{font-size:10px;line-height:1.25;background:#fff;border:1px solid var(--lijn);border-left-width:4px;border-radius:5px;padding:1px 3px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kalbalk.ok{opacity:.45}
 .ldot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
 /* taken, voortgang, foto's */
 .thumb{height:64px;border-radius:8px;border:1px solid var(--lijn);object-fit:cover}
@@ -565,7 +570,8 @@ function rWeek(app){
   const plans={};
   for(const afd of S.data.afdelingen.filter(a=>a.actief&&!verborgen.has(a.id))) plans[afd.id]=planAfdeling(afd);
   const iwA=isoWeek(weken[0]), iwB=isoWeek(weken[weken.length-1]);
-  let h='<div class="dagnav"><button id="wk-vorig">‹</button><div class="datum">'+(S.wkVenster>1?('wk '+iwA.week+' – wk '+iwB.week):('wk '+iwA.week))+' <span class="stil">vanaf '+fmt(weken[0])+'</span></div><button id="wk-volgend">›</button><button id="wk-nu" style="font-size:12px">deze week</button></div>';
+  const iwSel=isoWeek(sel);
+  let h='<div class="dagnav"><button id="wk-vorig">‹</button><div class="datum">wk '+iwSel.week+' <span class="stil">'+fmt(sel)+(S.wkVenster>1?' · wk '+iwA.week+'–'+iwB.week+' in beeld':'')+'</span></div><button id="wk-volgend">›</button><button id="wk-nu" style="font-size:12px">deze week</button></div>';
   h+='<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
     +'<label class="stil">weken in beeld:</label><button class="stap" id="wk-min">−</button><input type="range" id="wk-slider" min="3" max="13" step="1" value="'+S.wkVenster+'" style="width:120px;accent-color:var(--groen)"><button class="stap" id="wk-plus">+</button><b id="wk-slider-label" style="min-width:18px">'+S.wkVenster+'</b>'
     +'<button class="knop licht klein" id="wk-filter">🔍 Filter afdelingen</button>'
@@ -659,7 +665,7 @@ function rWeek(app){
       document.addEventListener('pointerup',los);
     };
   });
-  app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.view='afdelingen';render();window.scrollTo(0,0);});
+  app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.agStart=S.wkStart;S.view='afdelingen';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
   app.querySelectorAll('th[data-week]').forEach(el=>el.onclick=()=>{S.wkStart=el.dataset.week;render();});
   app.querySelectorAll('[data-weekdag]').forEach(el=>el.onclick=e=>{e.stopPropagation();S.weekStart=el.dataset.weekdag;S.weekBlok=null;S.view='weekdetail';render();window.scrollTo(0,0);});
@@ -690,7 +696,7 @@ function rWeekDetail(app){
   if(scopeBlok) h+='<div class="stil" style="margin-bottom:8px">Ingezoomd op blok "'+esc(scopeBlok.naam)+'" — <a href="#" id="w-heelweek">alle afdelingen tonen</a></div>';
   h+='<div id="wg"><table><tr class="kop"><th class="naam">Afdeling</th>';
   for(const d of dagen){ const dIso=iso(d);
-    h+='<th data-dag="'+dIso+'" title="klik voor de dagweergave" class="'+(dIso===vandaagISO()?'wknu':'')+'">'+DG[(d.getUTCDay()+6)%7]+'<br><span style="font-weight:400">'+d.getUTCDate()+'/'+(d.getUTCMonth()+1)+'</span></th>'; }
+    h+='<th data-dag="'+dIso+'" title="klik voor de dagweergave" style="min-width:150px" class="'+(dIso===vandaagISO()?'wknu':'')+'">'+DG[(d.getUTCDay()+6)%7]+'<br><span style="font-weight:400">'+d.getUTCDate()+'/'+(d.getUTCMonth()+1)+'</span></th>'; }
   h+='</tr>';
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     if(scopeBlok&&loc.id!==scopeBlok.locatie_id) continue;
@@ -714,13 +720,16 @@ function rWeekDetail(app){
           const dIso=iso(d);
           let segs='';
           for(const r of plans[afd.id]){
-            if(r.start&&r.eind&&d>=r.start&&d<=r.eind&&r.a.status!=='nvt')
-              segs+='<div class="wseg" style="background:'+kleur(r.a.naam)+';opacity:'+(r.a.status==='klaar'?0.35:1)+'" title="'+esc(r.a.naam)+'"></div>';
+            if(r.start&&r.eind&&d>=r.start&&d<=r.eind&&r.a.status!=='nvt'){
+              const bv=bedrijfVan(afd,r.a);
+              segs+='<div class="wblok" style="border-left-color:'+kleur(r.a.naam)+';opacity:'+(r.a.status==='klaar'?0.5:1)+'">'+esc(r.a.naam)+(r.a.status==='klaar'?' ✓':'')
+                +(bv?'<br><span class="stil">'+bedrijfDot(bv.naam)+esc(bv.naam)+'</span>':'')+'</div>';
+            }
           }
           const levs=S.data.leveringen.filter(l=>{ if(!l.datum||l.datum.slice(0,10)!==dIso) return false;
             return (l.afdeling_tekst||'').toLowerCase().includes(afd.code.toLowerCase())&&(l.afdeling_tekst||'').toLowerCase().includes(loc.code.split('/')[0].toLowerCase().slice(0,2)); });
-          const lev = levs.length?'<span class="wlev '+(levs.every(x=>x.ontvangen)?'ok':'')+'" title="'+esc(levs.map(x=>levBedrijfNaam(x)+' '+x.materiaal).join(', '))+'"></span>':'';
-          h+='<td><div class="wcel" data-afd="'+afd.id+'">'+segs+lev+'</div></td>';
+          for(const l of levs) segs+='<div class="wblok" style="border-left-color:'+(l.ontvangen?'#52b788':'#c1442e')+'">📦 '+esc(levBedrijfNaam(l))+' · '+esc(l.materiaal)+(l.ontvangen?' ✓':'')+'</div>';
+          h+='<td><div class="wcel breed" data-afd="'+afd.id+'">'+segs+'</div></td>';
         }
         h+='</tr>';
       }
@@ -736,7 +745,7 @@ function rWeekDetail(app){
   document.getElementById('w-terug').onclick=()=>{S.weekBlok=null;S.view='week';render();};
   const hw=document.getElementById('w-heelweek'); if(hw) hw.onclick=e=>{e.preventDefault();S.weekBlok=null;render();};
   app.querySelectorAll('th[data-dag]').forEach(el=>el.onclick=()=>{S.dag=el.dataset.dag;S.dagBlok=S.weekBlok;S.view='vandaag';render();window.scrollTo(0,0);});
-  app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.view='afdelingen';render();window.scrollTo(0,0);});
+  app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='week';S.agStart=S.weekStart;S.view='afdelingen';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
 }
 
@@ -826,13 +835,14 @@ function rAfdDetail(app){
       } else if(r.start&&!r.eind&&iso(r.start)===dIso){
         cel='<div class="agbalk" data-agact="'+r.a.id+'" title="start bekend, duur nog invullen" style="background:'+kleur(r.a.naam)+';opacity:.45;border:1px dashed #666"></div>';
       }
+      if(r.start&&r.eind&&dIso===iso(r.eind)) cel+='<span class="aggreep" data-greep="'+r.a.id+'" title="sleep naar links of rechts om korter of langer te maken"><i></i></span>';
       h+='<td><div class="agcel">'+cel+'</div></td>';
     }
     h+='</tr>';
   }
   h+='</table></div>';
   h+='<div class="stil" style="margin-top:4px">'+(ietsGepland
-    ?'Vol = gedaan/bezig, licht = gepland, arcering = vrije dag. Tik op een balk of activiteitnaam om dagen aan/uit te zetten, de duur of de einddatum te wijzigen.'
+    ?'Vol = gedaan/bezig, licht = gepland, arcering = vrije dag. Sleep het greepje aan het einde van een balk naar links of rechts om korter of langer te maken; tik op een balk voor alle details.'
     :'Nog niets ingepland: zet hierboven een startdatum en geef hieronder per activiteit de werkdagen op — de agenda vult zich dan vanzelf.')+'</div></div>';
   h+='<div class="kaart"><h2>Activiteiten (volgorde = planning)</h2>';
   rows.forEach((r,i)=>{
@@ -872,6 +882,37 @@ function rAfdDetail(app){
   document.getElementById('ag-nu').onclick=()=>{S.agStart=iso(maandagVan(pd(vandaagISO())));render();};
   app.querySelectorAll('[data-agact]').forEach(el=>el.onclick=()=>actKaart(afd.id,+el.dataset.agact));
   app.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>actKaart(afd.id,+el.dataset.open));
+  app.querySelectorAll('.aggreep').forEach(g=>{
+    g.onclick=e=>e.stopPropagation();
+    g.onpointerdown=e=>{
+      e.preventDefault(); e.stopPropagation();
+      const actId=+g.dataset.greep;
+      const r=rows.find(x=>x.a.id===actId);
+      if(!r||!r.start||!r.eind) return;
+      const cellen=Array.from(g.closest('tr').querySelectorAll('td')).slice(1).map(td=>td.querySelector('.agcel'));
+      let doel=-1;
+      const vindKol=x=>{
+        for(let i=0;i<cellen.length;i++){ const b=cellen[i].getBoundingClientRect(); if(x>=b.left&&x<=b.right) return i; }
+        return -1;
+      };
+      const teken=()=>cellen.forEach((c,i)=>c.classList.toggle('agdoel', doel>=0&&dagen[i]>=r.start&&i<=doel));
+      const beweeg=ev=>{ const i=vindKol(ev.clientX); if(i>=0&&dagen[i]>=r.start){ doel=i; teken(); } };
+      const los=()=>{
+        document.removeEventListener('pointermove',beweeg);
+        document.removeEventListener('pointerup',los);
+        cellen.forEach(c=>c.classList.remove('agdoel'));
+        if(doel<0) return;
+        const nieuwEind=dagen[doel];
+        let n=0;
+        for(let d=new Date(r.start); d<=nieuwEind; d.setUTCDate(d.getUTCDate()+1)) if(werkdagAct(d,afd,r.a)) n++;
+        if(n<1) n=1;
+        if(n===r.a.duur) return;
+        doe({action:'act_update',id:actId,fields:{duur:n}}, afdNaam(afd)+' — "'+r.a.naam+'" duur → '+n+' wd (gesleept)');
+      };
+      document.addEventListener('pointermove',beweeg);
+      document.addEventListener('pointerup',los);
+    };
+  });
   document.getElementById('afd-actief').onchange=e=>doe({action:'afd_update',id:afd.id,fields:{actief:e.target.checked}}, afdNaam(afd)+' '+(e.target.checked?'geactiveerd':'op inactief gezet'));
   document.getElementById('afd-start').onchange=e=>doe({action:'afd_update',id:afd.id,fields:{startdatum:e.target.value||null}}, afdNaam(afd)+' startdatum → '+(e.target.value||'leeg'));
   document.getElementById('afd-notitie').onchange=e=>doe({action:'afd_update',id:afd.id,fields:{notitie:e.target.value}});
@@ -1149,15 +1190,16 @@ function rLeveringen(app){
       const d=new Date(w); d.setUTCDate(d.getUTCDate()+i);
       const dIso=iso(d);
       const dagLevs=gefilterd.filter(l=>l.datum&&l.datum.slice(0,10)===dIso);
-      const uniq=Array.from(new Set(dagLevs.map(l=>levBedrijfNaam(l))));
       h+='<div class="kaldag'+(d.getUTCMonth()===mnd-1?'':' buiten')+(dIso===vandaag?' nu':'')+(S.levDag===dIso?' sel':'')+'" data-ldag="'+dIso+'">'
         +'<div class="kalnr">'+d.getUTCDate()+'</div>'
-        +'<div class="kaldots">'+uniq.slice(0,4).map(n=>'<i class="ldot" style="background:'+levKleur(n)+';opacity:'+(dagLevs.filter(l=>levBedrijfNaam(l)===n).every(l=>l.ontvangen)?0.35:1)+'" title="'+esc(n)+'"></i>').join('')
-        +(uniq.length>4?'<span class="stil">+'+(uniq.length-4)+'</span>':'')+'</div></div>';
+        +dagLevs.slice(0,3).map(function(l){ const n=levBedrijfNaam(l);
+          return '<div class="kalbalk'+(l.ontvangen?' ok':'')+'" style="border-left-color:'+levKleur(n)+'" title="'+esc(n+' · '+l.materiaal+(l.afdeling_tekst?' · '+l.afdeling_tekst:''))+'">'+esc(n)+' · '+esc(l.materiaal)+(l.ontvangen?' ✓':'')+'</div>'; }).join('')
+        +(dagLevs.length>3?'<div class="stil" style="font-size:10px;margin-top:2px">+'+(dagLevs.length-3)+' meer</div>':'')
+        +'</div>';
     }
     h+='</div>';
   }
-  h+='<div class="stil" style="margin-top:6px">Stip = levering (kleur per bedrijf, vervaagd = ontvangen). Tik een dag voor de details.</div></div>';
+  h+='<div class="stil" style="margin-top:6px">Balkje = levering met bedrijf en materiaal (kleur per bedrijf, vervaagd = ontvangen). Tik een dag voor de details.</div></div>';
   if(S.levDag){
     const dagLevs=gefilterd.filter(l=>l.datum&&l.datum.slice(0,10)===S.levDag);
     h+='<div class="kaart"><h2>📦 '+fmtLang(pd(S.levDag))+'</h2>'
