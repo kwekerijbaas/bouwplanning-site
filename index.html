@@ -591,15 +591,16 @@ function koppelStatus(root){
 function levRegel(l){
   const nm=levBedrijfNaam(l);
   return '<div class="regel"><input type="checkbox" data-lev="'+l.id+'" '+(l.ontvangen?'checked':'')+'>'
-    +'<span style="flex:1">'+bedrijfDot(nm)+'<b>'+esc(nm)+'</b> <span class="chip" style="background:'+(MAT_KLEUR[l.materiaal]||'#6c757d')+'">'+esc(l.materiaal)+'</span>'
+    +'<span style="flex:1;cursor:pointer" data-levopen="'+l.id+'" title="tik om te bekijken of aan te passen">'+bedrijfDot(nm)+'<b>'+esc(nm)+'</b> <span class="chip" style="background:'+(MAT_KLEUR[l.materiaal]||'#6c757d')+'">'+esc(l.materiaal)+'</span>'
     +'<br><span class="stil">'+esc(l.afdeling_tekst||'')+(l.omschrijving?' · '+esc(l.omschrijving):'')+'</span></span>'
-    +'<span class="stil">'+fmt(pd(l.datum))+'</span></div>';
+    +'<span style="cursor:pointer" data-levopen="'+l.id+'" class="stil">'+fmt(pd(l.datum))+' ›</span></div>';
 }
 function koppelLev(root){
   root.querySelectorAll('input[data-lev]').forEach(c=>c.onchange=()=>{
     const l=S.data.leveringen.find(x=>x.id===+c.dataset.lev);
     doe({action:'lev_update',id:l.id,fields:{ontvangen:c.checked}}, 'Levering '+levBedrijfNaam(l)+' ('+(l.datum||'').slice(0,10)+') '+(c.checked?'ontvangen ✓':'niet ontvangen'));
   });
+  root.querySelectorAll('[data-levopen]').forEach(el=>el.onclick=()=>levKaart(+el.dataset.levopen));
 }
 
 /* ---- Week ---- */
@@ -1080,18 +1081,21 @@ function actKaart(afdId, actId){
     let x='<div class="sheetkaart"><div class="sheettitel"><span class="chip" style="background:'+kleur(a.naam)+'">'+esc(a.naam)+'</span> '+esc(afdNaam(afd))+' '+statusKnop(a)+'</div>';
     const startWaarde=a.handmatige_start?a.handmatige_start.slice(0,10):(gepland?iso(r.start):'');
     x+='<div class="sheetrij"><label>Start</label><input type="date" id="ak-start" value="'+startWaarde+'">'
+      +(startWaarde?'<span class="stil"><b>wk '+isoWeek(pd(startWaarde)).week+'</b></span>':'')
       +(a.handmatige_start
         ?'<span class="stil">📌 vast</span><button class="knop klein licht" id="ak-start-auto">maak automatisch</button>'
         :'<span class="stil">'+(gepland?'volgt automatisch — kies een datum om vast te zetten':'kies de startdatum')+'</span>')+'</div>';
     x+='<div class="sheetrij"><label>Werkdagen</label><span class="stepper"><button class="stap" id="dp-min">−</button><input type="number" id="dp-duur" min="0" max="99" value="'+(a.duur==null?'':a.duur)+'"><button class="stap" id="dp-plus">+</button></span>'
       +(gepland?'<label>Klaar op</label><input type="date" id="dp-eind" value="'+(r.eind?iso(r.eind):'')+'">':'')+'</div>';
     if(gepland){
-      x+='<div class="stil">'+fmt(r.start)+' t/m '+(r.eind?fmt(r.eind):'?')+(a.duur!=null?' · '+a.duur+' werkdagen (ma t/m za)':' · duur nog invullen')
+      x+='<div class="stil">'+fmt(r.start)+' (wk '+isoWeek(r.start).week+') t/m '+(r.eind?fmt(r.eind)+' (wk '+isoWeek(r.eind).week+')':'?')+(a.duur!=null?' · '+a.duur+' werkdagen (ma t/m za)':' · duur nog invullen')
         +'<br>Tik een dag uit als er die dag niet gewerkt wordt. Zondag staat standaard uit — tik hem aan als er die zondag t&oacute;ch gewerkt wordt.</div>';
       if(r.eind&&a.duur){
         x+='<div class="keuze" style="max-height:32vh;overflow:auto">';
+        let eersteChip=true;
         for(let d=new Date(r.start); d<=r.eind; d.setUTCDate(d.getUTCDate()+1)){
           const dIso=iso(d);
+          if(eersteChip||d.getUTCDay()===1){ x+='<span class="stil" style="width:100%;font-size:10px;margin-top:2px">wk '+isoWeek(d).week+'</span>'; eersteChip=false; }
           x+='<button data-dpdag="'+dIso+'" class="'+(werkdagAct(d,afd,a)?'aan':'')+'">'+fmt(d)+'</button>';
         }
         x+='</div>';
@@ -1193,6 +1197,7 @@ function levKaart(levId){
     const nm=levBedrijfNaam(l);
     let x='<div class="sheetkaart"><div class="sheettitel">📦 Levering — '+bedrijfDot(nm)+esc(nm)+'</div>'
       +'<div class="sheetrij"><label>Datum</label><input type="date" id="lk-datum" value="'+esc(String(l.datum||'').slice(0,10))+'">'
+      +(l.datum?'<span class="stil"><b>wk '+isoWeek(pd(l.datum)).week+'</b></span>':'')
       +'<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="lk-ontv" '+(l.ontvangen?'checked':'')+'> ontvangen</label></div>'
       +'<div class="sheetrij"><label>Bedrijf</label><button class="knop licht klein" id="lk-bedrijf">'+bedrijfDot(nm)+esc(nm)+' ✎</button></div>'
       +'<div class="sheetrij"><label>Materiaal</label><span class="keuze">'+['glas','schermdoek','gronddoek','atlasdraad','overig'].map(m=>'<button data-lkmat="'+m+'" class="'+(l.materiaal===m?'aan':'')+'">'+m+'</button>').join('')+'</span></div>'
