@@ -331,7 +331,31 @@ function beheerRijen(type, items){
 }
 function rBeheer(app){
   const dicht=dichtSet();
-  let h='<div class="kaart"><h2>🎨 Activiteiten</h2>'
+  let h='<div class="kaart"><h2>📍 Locaties en groepen</h2>'
+    +'<div class="stil" style="margin-bottom:6px">Een locatie bevat groepen, een groep bevat afdelingen. Hernoemen werkt overal door. Een afdeling verplaats je in het afdelingsscherm zelf.</div>';
+  for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
+    const nAfd=S.data.afdelingen.filter(a=>a.locatie_id===loc.id).length;
+    if(bhBewerk&&bhBewerk.type==='loc'&&bhBewerk.id===loc.id){
+      h+='<div class="regel"><input type="text" id="bh-code" value="'+esc(loc.code)+'" style="width:90px" placeholder="code"><input type="text" id="bh-naam" value="'+esc(loc.naam)+'" style="flex:1" placeholder="omschrijving">'
+        +'<button class="knop klein" data-bhok="loc|'+loc.id+'">opslaan</button><button class="knop klein licht" id="bh-annuleer">annuleer</button></div>';
+    } else {
+      h+='<div class="regel"><b style="min-width:60px">'+esc(loc.code)+'</b><span style="flex:1" class="stil">'+esc(loc.naam)+' · '+nAfd+' afdeling(en)</span>'
+        +'<button class="pijl" data-bhw="loc|'+loc.id+'" title="hernoemen">✎</button><button class="pijl" data-bhdel="loc|'+loc.id+'" title="verwijderen">🗑</button></div>';
+    }
+    for(const blok of S.data.blokken.filter(b=>b.locatie_id===loc.id).sort((a,b)=>a.sort-b.sort)){
+      const nb=S.data.afdelingen.filter(a=>a.blok_id===blok.id).length;
+      if(bhBewerk&&bhBewerk.type==='blok'&&bhBewerk.id===blok.id){
+        h+='<div class="regel" style="padding-left:22px"><input type="text" id="bh-naam" value="'+esc(blok.naam)+'" style="flex:1">'
+          +'<button class="knop klein" data-bhok="blok|'+blok.id+'">opslaan</button><button class="knop klein licht" id="bh-annuleer">annuleer</button></div>';
+      } else {
+        h+='<div class="regel" style="padding-left:22px"><span style="flex:1">'+esc(blok.naam)+' <span class="stil">('+nb+')</span></span>'
+          +'<button class="pijl" data-bhw="blok|'+blok.id+'" title="hernoemen">✎</button><button class="pijl" data-bhdel="blok|'+blok.id+'" title="verwijderen">🗑</button></div>';
+      }
+    }
+    h+='<div class="regel" style="padding-left:22px"><input type="text" data-nieuwblok="'+loc.id+'" placeholder="nieuwe groep in '+esc(loc.code)+'…" style="flex:1"><button class="knop klein" data-nieuwblokok="'+loc.id+'">+ groep</button></div>';
+  }
+  h+='<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input type="text" id="bh-nieuw-loccode" placeholder="code, bv. 3T40" style="width:110px"><input type="text" id="bh-nieuw-locnaam" placeholder="omschrijving" style="flex:1;min-width:120px"><button class="knop klein" id="bh-nieuw-loc-ok">+ locatie</button></div></div>';
+  h+='<div class="kaart"><h2>🎨 Activiteiten</h2>'
     +'<div class="stil" style="margin-bottom:6px">Hernoemen werkt overal door. Verwijderen kan alleen als een activiteit nergens meer in een planning staat.</div>'
     +beheerRijen('act', actCats())
     +'<div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="bh-nieuw-act" placeholder="nieuwe activiteit…" style="flex:1"><button class="knop klein" id="bh-nieuw-act-ok">+ toevoegen</button></div></div>';
@@ -368,25 +392,44 @@ function rBeheer(app){
   });
   app.querySelectorAll('button[data-bhw]').forEach(b=>b.onclick=()=>{ const p=b.dataset.bhw.split('|'); bhBewerk={type:p[0],id:+p[1]}; render(); });
   const ann=document.getElementById('bh-annuleer'); if(ann) ann.onclick=()=>{ bhBewerk=null; render(); };
+  const SOORT={act:{upd:'actcat_update',del:'actcat_delete',lbl:'Activiteit'},bedrijf:{upd:'bedrijf_update',del:'bedrijf_delete',lbl:'Bedrijf'},
+    loc:{upd:'locatie_update',del:'locatie_delete',lbl:'Locatie'},blok:{upd:'blok_update',del:'blok_delete',lbl:'Groep'}};
   app.querySelectorAll('button[data-bhok]').forEach(b=>b.onclick=async()=>{
     const p=b.dataset.bhok.split('|');
+    const s=SOORT[p[0]];
     const v=document.getElementById('bh-naam').value.trim();
-    if(!v) return;
-    try{
-      await api({action:p[0]==='act'?'actcat_update':'bedrijf_update',id:+p[1],naam:v,
-        log:(p[0]==='act'?'Activiteit':'Bedrijf')+' hernoemd naar "'+v+'"'});
-      await laad(); bhBewerk=null; render();
-    }catch(e){ toast(e.message||'Hernoemen mislukt'); }
+    const req={action:s.upd,id:+p[1]};
+    if(p[0]==='loc'){
+      const c=document.getElementById('bh-code').value.trim();
+      if(!c){ toast('Code mag niet leeg zijn'); return; }
+      req.loccode=c; req.naam=v||c; req.log='Locatie hernoemd naar "'+c+'"';
+    } else {
+      if(!v) return;
+      req.naam=v; req.log=s.lbl+' hernoemd naar "'+v+'"';
+    }
+    try{ await api(req); await laad(); bhBewerk=null; render(); }
+    catch(e){ toast(e.message||'Hernoemen mislukt'); }
   });
   app.querySelectorAll('button[data-bhdel]').forEach(b=>b.onclick=async()=>{
     const p=b.dataset.bhdel.split('|');
+    const s=SOORT[p[0]];
     if(b.dataset.zeker!=='1'){ b.dataset.zeker='1'; toast('Nogmaals tikken om definitief te verwijderen'); return; }
     try{
-      await api({action:p[0]==='act'?'actcat_delete':'bedrijf_delete',id:+p[1],
-        log:(p[0]==='act'?'Activiteit':'Bedrijf')+' verwijderd uit de lijst'});
+      await api({action:s.del,id:+p[1],log:s.lbl+' verwijderd uit de lijst'});
       await laad(); render();
     }catch(e){ toast(e.message||'Verwijderen mislukt'); b.dataset.zeker=''; }
   });
+  app.querySelectorAll('button[data-nieuwblokok]').forEach(b=>b.onclick=()=>{
+    const locId=+b.dataset.nieuwblokok;
+    const inp=app.querySelector('input[data-nieuwblok="'+locId+'"]');
+    const v=inp.value.trim();
+    if(v) doe({action:'blok_add',locatie_id:locId,naam:v}, 'Groep toegevoegd: '+v);
+  });
+  document.getElementById('bh-nieuw-loc-ok').onclick=()=>{
+    const c=document.getElementById('bh-nieuw-loccode').value.trim();
+    const n=document.getElementById('bh-nieuw-locnaam').value.trim();
+    if(c) doe({action:'locatie_add',loccode:c,naam:n||c}, 'Locatie toegevoegd: '+c);
+  };
   const nA=document.getElementById('bh-nieuw-act-ok');
   nA.onclick=()=>{
     const v=document.getElementById('bh-nieuw-act').value.trim();
@@ -797,6 +840,7 @@ function rAfdDetail(app){
     +'<label style="margin-left:auto;font-size:13px"><input type="checkbox" id="afd-actief" '+(afd.actief?'checked':'')+'> actief</label></div>';
   h+='<div class="instelrij"><label>Start</label><input type="date" id="afd-start" value="'+(afd.startdatum?afd.startdatum.slice(0,10):'')+'">'
     +'<label>Notitie</label><input type="text" id="afd-notitie" style="flex:1;min-width:140px" value="'+esc(afd.notitie)+'"></div>';
+  h+='<div class="instelrij"><label>Locatie</label><button class="knop licht klein" id="afd-verplaats">'+esc(afdPlek(afd))+' &#8250;</button></div>';
   h+='</div>';
   if(!S.agStart) S.agStart=iso(maandagVan(pd(vandaag)));
   const agStart=pd(S.agStart);
@@ -955,6 +999,41 @@ function rAfdDetail(app){
     doe({action:'act_add',afdeling_id:afd.id,naam:v}, afdNaam(afd)+' — activiteit "'+v+'" toegevoegd');
   };
   document.getElementById('afd-kopieer').onclick=()=>kopieerDuren(afd.id);
+  document.getElementById('afd-verplaats').onclick=()=>verplaatsAfdeling(afd.id);
+}
+
+function afdPlek(afd){
+  const loc=S.data.locaties.find(l=>l.id===afd.locatie_id);
+  const blok=S.data.blokken.find(b=>b.id===afd.blok_id);
+  return (loc?loc.code:'?')+(blok?' · '+blok.naam:'');
+}
+
+function verplaatsAfdeling(afdId){
+  const sh=document.getElementById('sheet');
+  const afd=S.data.afdelingen.find(a=>a.id===afdId);
+  if(!afd) return;
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
+  let x='<div class="sheetkaart"><div class="sheettitel">📍 '+esc(afdNaam(afd))+' verplaatsen</div>'
+    +'<div class="stil">Kies de groep waar deze afdeling voortaan onder valt. De planning, taken en foto&#39;s gaan gewoon mee.</div>';
+  for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
+    const blokken=S.data.blokken.filter(b=>b.locatie_id===loc.id).sort((a,b)=>a.sort-b.sort);
+    if(!blokken.length) continue;
+    x+='<div style="font-weight:600;font-size:13px;margin-top:4px">'+esc(loc.code)+'</div><div class="keuze">';
+    for(const b of blokken) x+='<button data-vp="'+loc.id+'|'+b.id+'" class="'+(afd.blok_id===b.id?'aan':'')+'">'+esc(b.naam)+'</button>';
+    x+='</div>';
+  }
+  x+='<button class="knop licht breed" id="vp-sluit">Annuleren</button></div>';
+  sh.innerHTML=x; sh.style.display='flex';
+  sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+  document.getElementById('vp-sluit').onclick=dichtFn;
+  sh.querySelectorAll('button[data-vp]').forEach(b=>b.onclick=()=>{
+    const p=b.dataset.vp.split('|');
+    const blok=S.data.blokken.find(x=>x.id===+p[1]);
+    const loc=S.data.locaties.find(x=>x.id===+p[0]);
+    dichtFn();
+    doe({action:'afd_update',id:afdId,fields:{locatie_id:+p[0],blok_id:+p[1]}},
+      afdNaam(afd)+' verplaatst naar '+loc.code+' · '+blok.naam);
+  });
 }
 function actKaart(afdId, actId){
   const sh=document.getElementById('sheet');
