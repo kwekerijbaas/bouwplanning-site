@@ -1396,8 +1396,10 @@ function rVoortgang(app){
 function rInbox(app){
   const open=openVoorstellen();
   const besloten=S.data.voorstellen.filter(v=>v.status!=='open').slice(0,10);
-  let h='<div class="kaart"><h2>📬 Voorstellen uit de mail</h2><div class="stil" style="margin-bottom:8px">Claude leest hagelschade@kwekerijbaas.nl en zet hier voorstellen neer. Niets wordt doorgevoerd zonder jouw akkoord.</div>';
+  let h='<div class="kaart"><h2>📬 Voorstellen uit de mail</h2><div class="stil" style="margin-bottom:8px">Claude leest hagelschade@kwekerijbaas.nl en zet hier voorstellen neer. Niets wordt doorgevoerd zonder jouw akkoord.</div>'
+    +'<div style="margin-bottom:8px"><button class="knop licht klein" id="vs-plak">📋 Mail plakken</button></div>';
   h+=open.length?open.map(v=>'<div class="kaart voorstel"><div class="bron">'+esc(v.bron)+'</div><div>'+esc(v.omschrijving)+'</div>'
+    +((v.payload&&v.payload.type==='mail'&&v.payload.tekst)?'<details><summary class="stil" style="cursor:pointer">volledige tekst</summary><div class="stil" style="white-space:pre-wrap;max-height:40vh;overflow:auto">'+esc(v.payload.tekst)+'</div></details>':'')
     +'<div class="knoppen"><button class="knop klein" data-ok="'+v.id+'">✓ Overnemen</button><button class="knop klein licht" data-wz="'+v.id+'">✎ Aanpassen</button><button class="knop klein licht" data-nee="'+v.id+'">Afwijzen</button></div></div>').join('')
     :'<div class="leeg">Geen open voorstellen. 👍</div>';
   h+='</div>';
@@ -1409,6 +1411,26 @@ function rInbox(app){
   app.querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>doe({action:'voorstel_besluit',id:+b.dataset.ok,besluit:'geaccepteerd'},'Voorstel #'+b.dataset.ok+' overgenomen'));
   app.querySelectorAll('[data-wz]').forEach(b=>b.onclick=()=>voorstelBewerken(+b.dataset.wz));
   app.querySelectorAll('[data-nee]').forEach(b=>b.onclick=()=>doe({action:'voorstel_besluit',id:+b.dataset.nee,besluit:'afgewezen'},'Voorstel #'+b.dataset.nee+' afgewezen'));
+  document.getElementById('vs-plak').onclick=plakSheet;
+}
+
+function plakSheet(){
+  const sh=document.getElementById('sheet');
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
+  sh.innerHTML='<div class="sheetkaart"><div class="sheettitel">📋 Mail plakken</div>'
+    +'<div class="stil">Kopieer de tekst van een mail (of ander bericht) en plak hem hieronder. Hij komt als voorstel in de Inbox; daarna kun je hem aanpassen en overnemen. De uurlijkse mail-lezer kijkt er ook naar en zet er zo mogelijk een kant-en-klaar leveringsvoorstel naast.</div>'
+    +'<textarea id="pl-tekst" rows="9" style="width:100%;box-sizing:border-box;border:1.5px solid var(--lijn);border-radius:8px;padding:8px;font:inherit" placeholder="plak hier de mailtekst&hellip;"></textarea>'
+    +'<button class="knop breed" id="pl-ok">Toevoegen aan Inbox</button>'
+    +'<button class="knop licht breed" id="pl-annuleer">Annuleren</button></div>';
+  sh.style.display='flex';
+  sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+  document.getElementById('pl-annuleer').onclick=dichtFn;
+  document.getElementById('pl-ok').onclick=()=>{
+    const t=document.getElementById('pl-tekst').value.trim();
+    if(!t){ toast('Plak eerst de tekst'); return; }
+    dichtFn();
+    doe({action:'mail_plak',tekst:t}, 'Mail geplakt in de Inbox');
+  };
 }
 
 function voorstelBewerken(vId){
