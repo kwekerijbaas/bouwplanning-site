@@ -554,7 +554,7 @@ function koppelLev(root){
 function rWeek(app){
   const nuMa=maandagVan(pd(vandaagISO()));
   if(!S.wkStart) S.wkStart=iso(nuMa);
-  if(!S.wkVenster){ const v=+(localStorage.getItem('rp_venster3')||3); S.wkVenster=(v>=1&&v<=13)?v:3; }
+  if(!S.wkVenster){ const v=+(localStorage.getItem('rp_venster3')||3); S.wkVenster=(v>=3&&v<=13)?v:3; }
   if(S.kolBreedte==null){ const kb=+(localStorage.getItem('rp_kolbreedte')||0); S.kolBreedte=(kb>=120&&kb<=500)?kb:0; }
   const sel=pd(S.wkStart);
   const offset=Math.floor((S.wkVenster-1)/2);
@@ -567,7 +567,7 @@ function rWeek(app){
   const iwA=isoWeek(weken[0]), iwB=isoWeek(weken[weken.length-1]);
   let h='<div class="dagnav"><button id="wk-vorig">‹</button><div class="datum">'+(S.wkVenster>1?('wk '+iwA.week+' – wk '+iwB.week):('wk '+iwA.week))+' <span class="stil">vanaf '+fmt(weken[0])+'</span></div><button id="wk-volgend">›</button><button id="wk-nu" style="font-size:12px">deze week</button></div>';
   h+='<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
-    +'<label class="stil">weken in beeld:</label><button class="stap" id="wk-min">−</button><input type="range" id="wk-slider" min="1" max="13" step="1" value="'+S.wkVenster+'" style="width:120px;accent-color:var(--groen)"><button class="stap" id="wk-plus">+</button><b id="wk-slider-label" style="min-width:18px">'+S.wkVenster+'</b>'
+    +'<label class="stil">weken in beeld:</label><button class="stap" id="wk-min">−</button><input type="range" id="wk-slider" min="3" max="13" step="1" value="'+S.wkVenster+'" style="width:120px;accent-color:var(--groen)"><button class="stap" id="wk-plus">+</button><b id="wk-slider-label" style="min-width:18px">'+S.wkVenster+'</b>'
     +'<button class="knop licht klein" id="wk-filter">🔍 Filter afdelingen</button>'
     +(verborgen.size?'<span class="stil">'+verborgen.size+' verborgen</span><button class="knop klein" id="wk-filter-wis">alles tonen</button>':'')
     +'</div>';
@@ -634,7 +634,7 @@ function rWeek(app){
   const sl=document.getElementById('wk-slider');
   sl.oninput=()=>{document.getElementById('wk-slider-label').textContent=sl.value;};
   sl.onchange=()=>{S.wkVenster=+sl.value;localStorage.setItem('rp_venster3',S.wkVenster);render();};
-  const zetVenster=n=>{S.wkVenster=Math.min(13,Math.max(1,n));localStorage.setItem('rp_venster3',S.wkVenster);render();};
+  const zetVenster=n=>{S.wkVenster=Math.min(13,Math.max(3,n));localStorage.setItem('rp_venster3',S.wkVenster);render();};
   document.getElementById('wk-min').onclick=()=>zetVenster(S.wkVenster-1);
   document.getElementById('wk-plus').onclick=()=>zetVenster(S.wkVenster+1);
   app.querySelectorAll('.kolgreep').forEach(g=>{
