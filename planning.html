@@ -948,6 +948,8 @@ function rAfdDetail(app){
       await laad();
     }catch(e){ toast(e.message||'Opslaan mislukt'); return; }
     actKaart(afd.id,+p[0]);
+    const di=document.getElementById('dp-duur');
+    if(di&&!di.value) di.focus();
   });
   const navAfd=n=>{ S.selAfd=volgorde[vIdx+n]; S.gewijzigd=null; render(); window.scrollTo(0,0); };
   if(vIdx>0) document.getElementById('afd-vorig').onclick=()=>navAfd(-1);
