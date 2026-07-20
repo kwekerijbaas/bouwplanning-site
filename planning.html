@@ -1282,18 +1282,22 @@ function rLeveringen(app){
   if(S.levDag){
     const dagLevs=gefilterd.filter(l=>l.datum&&l.datum.slice(0,10)===S.levDag);
     h+='<div class="kaart"><h2>📦 '+fmtLang(pd(S.levDag))+'</h2>'
-      +(dagLevs.length?dagLevs.map(levRegel).join(''):'<div class="leeg">Geen leveringen'+((S.levMat||S.levBedrijf)?' binnen dit filter':'')+' op deze dag.</div>')+'</div>';
+      +(dagLevs.length?dagLevs.map(levRegel).join(''):'<div class="leeg">Geen leveringen'+((S.levMat||S.levBedrijf)?' binnen dit filter':'')+' op deze dag.</div>')
+      +'<div style="margin-top:8px"><button class="knop licht klein" id="nl-opdag">➕ levering op deze dag invullen</button></div></div>';
   }
-  h+='<div class="kaart"><h2>➕ Nieuwe levering</h2>'
+  h+='<div class="kaart" id="nl-kaart"><h2>➕ Nieuwe levering</h2>'
     +'<div class="instelrij"><label>Bedrijf</label><span class="keuze" id="nl-bedrijf">'
     +(S.data.bedrijven||[]).map(b=>'<button data-nb="'+b.id+'" class="'+(S.nlBedrijf===b.id?'aan':'')+'">'+bedrijfDot(b.naam)+esc(b.naam)+'</button>').join('')
     +'<button data-nb="nieuw">+ nieuw bedrijf</button></span></div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
-    +'<input type="date" id="nl-datum" value="'+vandaag+'">'
-    +'<span class="keuze" id="nl-materiaal">'+['glas','schermdoek','gronddoek','atlasdraad','overig'].map((m,i)=>'<button data-mat="'+m+'" class="'+(i===0?'aan':'')+'">'+m+'</button>').join('')+'</span>'
-    +'<input type="text" id="nl-afd" placeholder="afdeling(en), bv. EW2/4 afd 6+7" style="flex:1;min-width:150px">'
-    +'<input type="text" id="nl-oms" placeholder="omschrijving (aantal, deel 1/2 …)" style="flex:2;min-width:150px">'
-    +'<button class="knop" id="nl-knop">Toevoegen</button></div></div>';
+    +'<div class="instelrij"><label>Materiaal</label><span class="keuze" id="nl-materiaal">'+['glas','schermdoek','gronddoek','atlasdraad','overig'].map((m,i)=>'<button data-mat="'+m+'" class="'+(i===0?'aan':'')+'">'+m+'</button>').join('')+'</span></div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
+    +'<input type="text" id="nl-afd" placeholder="afdeling(en), bv. EW2 afd 1+2" style="flex:1;min-width:150px">'
+    +'<input type="text" id="nl-oms" placeholder="omschrijving (aantal kisten …)" style="flex:2;min-width:150px"></div>'
+    +'<div class="instelrij" style="align-items:flex-start"><label style="padding-top:8px">Leverdatum(s)</label>'
+    +'<span id="nl-datums" style="display:flex;flex-direction:column;gap:6px"><span style="display:flex;gap:4px"><input type="date" class="nl-datum" value="'+vandaag+'"></span></span>'
+    +'<button class="knop licht klein" id="nl-meer" title="nog een leverdatum erbij — elke datum wordt een eigen (deel)levering">+ deellevering</button></div>'
+    +'<div class="stil" style="margin:4px 0 8px">Meerdere datums? Elke datum wordt een eigen levering, automatisch genummerd als deel 1/2, 2/2 enzovoort.</div>'
+    +'<button class="knop breed" id="nl-knop">Toevoegen</button></div>';
   h+='<div class="kaart"><h2>📦 Verwacht'+((S.levMat||S.levBedrijf)?' <span class="stil">(gefilterd)</span>':'')+'</h2>'+(komend.length?komend.map(levRegel).join(''):'<div class="leeg">Niets gepland'+((S.levMat||S.levBedrijf)?' binnen dit filter':'')+'. Leveringen komen ook automatisch binnen via de mail-inbox.</div>')+'</div>';
   h+='<div class="kaart"><h2>Geschiedenis</h2>'+(oud.length?oud.slice(0,30).map(levRegel).join(''):'<div class="leeg">Nog leeg.</div>')+'</div>';
   app.innerHTML=h;
@@ -1302,20 +1306,48 @@ function rLeveringen(app){
     app.querySelectorAll('#nl-materiaal button').forEach(x=>x.classList.remove('aan'));
     b.classList.add('aan');
   });
+  const zetBedrijfKnoppen=()=>app.querySelectorAll('#nl-bedrijf button').forEach(x=>x.classList.toggle('aan', +x.dataset.nb===S.nlBedrijf));
   app.querySelectorAll('#nl-bedrijf button').forEach(b=>b.onclick=()=>{
     if(b.dataset.nb==='nieuw'){
-      bedrijfKiezer('Bedrijf voor deze levering', S.nlBedrijf||null, bid=>{ S.nlBedrijf=bid; render(); });
-    } else { S.nlBedrijf=(+b.dataset.nb===S.nlBedrijf)?null:+b.dataset.nb; render(); }
+      bedrijfKiezer('Bedrijf voor deze levering', S.nlBedrijf||null, bid=>{
+        S.nlBedrijf=bid;
+        if(app.querySelector('#nl-bedrijf button[data-nb="'+bid+'"]')) zetBedrijfKnoppen(); else render();
+      });
+    } else { S.nlBedrijf=(+b.dataset.nb===S.nlBedrijf)?null:+b.dataset.nb; zetBedrijfKnoppen(); }
   });
-  document.getElementById('nl-knop').onclick=()=>{
-    const f={ datum:document.getElementById('nl-datum').value||null,
-      bedrijf_id:S.nlBedrijf,
+  document.getElementById('nl-meer').onclick=()=>{
+    const rij=document.createElement('span');
+    rij.style.cssText='display:flex;gap:4px';
+    rij.innerHTML='<input type="date" class="nl-datum"><button class="pijl nl-wis" title="deze datum weghalen">✕</button>';
+    document.getElementById('nl-datums').appendChild(rij);
+    rij.querySelector('.nl-wis').onclick=()=>rij.remove();
+    rij.querySelector('input').focus();
+  };
+  const opdag=document.getElementById('nl-opdag');
+  if(opdag) opdag.onclick=()=>{
+    app.querySelector('.nl-datum').value=S.levDag;
+    document.getElementById('nl-kaart').scrollIntoView({behavior:'smooth'});
+  };
+  document.getElementById('nl-knop').onclick=async()=>{
+    const datums=Array.from(app.querySelectorAll('.nl-datum')).map(i=>i.value).filter(Boolean);
+    const basis={ bedrijf_id:S.nlBedrijf,
       leverancier:S.nlBedrijf?(bedrijfNaam(S.nlBedrijf)||''):'',
       materiaal:app.querySelector('#nl-materiaal button.aan').dataset.mat,
       afdeling_tekst:document.getElementById('nl-afd').value.trim(),
       omschrijving:document.getElementById('nl-oms').value.trim(), bron:'handmatig ('+S.wie+')' };
-    if(!f.bedrijf_id){toast('Kies eerst een bedrijf');return;}
-    doe({action:'lev_add',fields:f}, 'Levering toegevoegd: '+f.leverancier+' '+f.materiaal+' '+(f.datum||''));
+    if(!basis.bedrijf_id){toast('Kies eerst een bedrijf');return;}
+    if(!datums.length){toast('Vul minstens één leverdatum in');return;}
+    datums.sort();
+    try{
+      for(let i=0;i<datums.length;i++){
+        const f=Object.assign({},basis,{datum:datums[i]});
+        if(datums.length>1) f.omschrijving=(basis.omschrijving?basis.omschrijving+' · ':'')+'deel '+(i+1)+'/'+datums.length;
+        await api({action:'lev_add',fields:f,
+          log:'Levering toegevoegd: '+basis.leverancier+' '+basis.materiaal+' '+datums[i]+(datums.length>1?' (deel '+(i+1)+'/'+datums.length+')':'')});
+      }
+      await laad(); render();
+      toast(datums.length>1?datums.length+' deelleveringen toegevoegd':'Levering toegevoegd');
+    }catch(e){ toast(e.message||'Toevoegen mislukt'); }
   };
   const maandStap=n=>{ const dd=S.levMaand.split('-'); let j=+dd[0], m=+dd[1]+n;
     if(m<1){m=12;j--;} if(m>12){m=1;j++;}
