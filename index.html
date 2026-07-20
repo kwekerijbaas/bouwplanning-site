@@ -63,6 +63,8 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .wblok{font-size:11px;line-height:1.35;background:#fff;border:1px solid var(--lijn);border-left-width:4px;border-radius:6px;padding:3px 6px;margin:2px 0;white-space:normal;text-align:left}
 /* afdeling-agenda */
 .agcel{min-height:24px;display:flex;align-items:center;justify-content:center;gap:1px;padding:1px;position:relative}
+.agcel[data-agdag]{cursor:pointer}
+.agcel[data-agdag]:hover{background:#eef4f1}
 .agcel.agdoel{background:rgba(45,106,79,.16)}
 .agbalk{height:16px;width:100%;min-width:18px;border-radius:3px;cursor:pointer}
 .agbalk.agnieuw{outline:2px solid var(--oranje)}
@@ -268,6 +270,8 @@ function volgendeWerkdag(d,wpw){ const t=new Date(d); do{t.setUTCDate(t.getUTCDa
 
 /* ---------- planning-engine (cascade) ---------- */
 function werkdagAct(d, afd, a){
+  // Zondag is standaard geen werkdag; alleen als hij expliciet is aangezet (plusdagen).
+  if(d.getUTCDay()===0) return (a.plusdagen||[]).indexOf(iso(d))>-1;
   if(!werkdag(d, afd.werkdagen)) return false;
   const sk=a.skipdagen||[];
   return sk.indexOf(iso(d))===-1;
@@ -835,8 +839,18 @@ function rAfdDetail(app){
   const rows=planAfdeling(afd);
   const vandaag=vandaagISO();
   const terugWeek=S.afdTerug==='week';
+  const volgorde=[];
+  for(const loc of S.data.locaties.slice().sort((a,b)=>a.sort-b.sort)){
+    for(const blok of S.data.blokken.filter(b=>b.locatie_id===loc.id).sort((a,b)=>a.sort-b.sort).concat([null])){
+      for(const a of S.data.afdelingen.filter(x=>x.locatie_id===loc.id&&(blok?x.blok_id===blok.id:!x.blok_id)).sort((a,b)=>a.sort-b.sort)) volgorde.push(a.id);
+    }
+  }
+  const vIdx=volgorde.indexOf(afd.id);
   let h='<a class="terug" href="#" id="terug">'+(terugWeek?'‹ Weekoverzicht':'‹ Alle afdelingen')+'</a>';
-  h+='<div class="kaart"><div class="afdkop"><span class="titel">'+esc(afdNaam(afd))+'</span>'
+  h+='<div class="kaart"><div class="afdkop">'
+    +'<button class="pijl" id="afd-vorig" title="vorige afdeling" '+(vIdx<=0?'disabled style="opacity:.3"':'')+'>‹</button>'
+    +'<span class="titel">'+esc(afdNaam(afd))+'</span>'
+    +'<button class="pijl" id="afd-volgend" title="volgende afdeling" '+(vIdx>=volgorde.length-1?'disabled style="opacity:.3"':'')+'>›</button>'
     +'<label style="margin-left:auto;font-size:13px"><input type="checkbox" id="afd-actief" '+(afd.actief?'checked':'')+'> actief</label></div>';
   h+='<div class="instelrij"><label>Start</label><input type="date" id="afd-start" value="'+(afd.startdatum?afd.startdatum.slice(0,10):'')+'">'
     +'<label>Notitie</label><input type="text" id="afd-notitie" style="flex:1;min-width:140px" value="'+esc(afd.notitie)+'"></div>';
@@ -880,7 +894,7 @@ function rAfdDetail(app){
         cel='<div class="agbalk" data-agact="'+r.a.id+'" title="start bekend, duur nog invullen" style="background:'+kleur(r.a.naam)+';opacity:.45;border:1px dashed #666"></div>';
       }
       if(r.start&&r.eind&&dIso===iso(r.eind)) cel+='<span class="aggreep" data-greep="'+r.a.id+'" title="sleep naar links of rechts om korter of langer te maken"><i></i></span>';
-      h+='<td><div class="agcel">'+cel+'</div></td>';
+      h+='<td><div class="agcel"'+(cel?'':' data-agdag="'+r.a.id+'|'+dIso+'" title="tik om deze activiteit hier te laten beginnen"')+'>'+cel+'</div></td>';
     }
     h+='</tr>';
   }
@@ -926,6 +940,18 @@ function rAfdDetail(app){
   document.getElementById('ag-nu').onclick=()=>{S.agStart=iso(maandagVan(pd(vandaagISO())));render();};
   app.querySelectorAll('[data-agact]').forEach(el=>el.onclick=()=>actKaart(afd.id,+el.dataset.agact));
   app.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>actKaart(afd.id,+el.dataset.open));
+  app.querySelectorAll('.agcel[data-agdag]').forEach(el=>el.onclick=async()=>{
+    const p=el.dataset.agdag.split('|');
+    const act=S.data.activiteiten.find(x=>x.id===+p[0]);
+    try{
+      await api({action:'act_update',id:+p[0],fields:{handmatige_start:p[1]},log:afdNaam(afd)+' — "'+(act?act.naam:'?')+'" start → '+p[1]});
+      await laad();
+    }catch(e){ toast(e.message||'Opslaan mislukt'); return; }
+    actKaart(afd.id,+p[0]);
+  });
+  const navAfd=n=>{ S.selAfd=volgorde[vIdx+n]; S.gewijzigd=null; render(); window.scrollTo(0,0); };
+  if(vIdx>0) document.getElementById('afd-vorig').onclick=()=>navAfd(-1);
+  if(vIdx<volgorde.length-1) document.getElementById('afd-volgend').onclick=()=>navAfd(1);
   app.querySelectorAll('.aggreep').forEach(g=>{
     g.onclick=e=>e.stopPropagation();
     g.onpointerdown=e=>{
@@ -1047,38 +1073,36 @@ function actKaart(afdId, actId){
     const r=rows.find(x=>x.a.id===actId);
     const gepland=!!(r&&r.start);
     let x='<div class="sheetkaart"><div class="sheettitel"><span class="chip" style="background:'+kleur(a.naam)+'">'+esc(a.naam)+'</span> '+esc(afdNaam(afd))+' '+statusKnop(a)+'</div>';
+    const startWaarde=a.handmatige_start?a.handmatige_start.slice(0,10):(gepland?iso(r.start):'');
+    x+='<div class="sheetrij"><label>Start</label><input type="date" id="ak-start" value="'+startWaarde+'">'
+      +(a.handmatige_start
+        ?'<span class="stil">📌 vast</span><button class="knop klein licht" id="ak-start-auto">maak automatisch</button>'
+        :'<span class="stil">'+(gepland?'volgt automatisch — kies een datum om vast te zetten':'kies de startdatum')+'</span>')+'</div>';
     x+='<div class="sheetrij"><label>Werkdagen</label><span class="stepper"><button class="stap" id="dp-min">−</button><input type="number" id="dp-duur" min="0" max="99" value="'+(a.duur==null?'':a.duur)+'"><button class="stap" id="dp-plus">+</button></span>'
       +(gepland?'<label>Klaar op</label><input type="date" id="dp-eind" value="'+(r.eind?iso(r.eind):'')+'">':'')+'</div>';
     if(gepland){
-      x+='<div class="stil">'+fmt(r.start)+' t/m '+(r.eind?fmt(r.eind):'?')+(a.duur!=null?' · '+a.duur+' werkdagen':' · duur nog invullen')
-        +'<br>Tik een dag uit als er die dag niet gewerkt wordt — de einddatum en het vervolgwerk schuiven automatisch mee.</div>';
+      x+='<div class="stil">'+fmt(r.start)+' t/m '+(r.eind?fmt(r.eind):'?')+(a.duur!=null?' · '+a.duur+' werkdagen (ma t/m za)':' · duur nog invullen')
+        +'<br>Tik een dag uit als er die dag niet gewerkt wordt. Zondag staat standaard uit — tik hem aan als er die zondag t&oacute;ch gewerkt wordt.</div>';
       if(r.eind&&a.duur){
         x+='<div class="keuze" style="max-height:32vh;overflow:auto">';
-        const sk=new Set(a.skipdagen||[]);
         for(let d=new Date(r.start); d<=r.eind; d.setUTCDate(d.getUTCDate()+1)){
           const dIso=iso(d);
-          x+='<button data-dpdag="'+dIso+'" class="'+(sk.has(dIso)?'':'aan')+'">'+fmt(d)+'</button>';
+          x+='<button data-dpdag="'+dIso+'" class="'+(werkdagAct(d,afd,a)?'aan':'')+'">'+fmt(d)+'</button>';
         }
         x+='</div>';
-        if(sk.size) x+='<button class="knop klein licht" id="dp-wis">alle vrije dagen wissen</button>';
+        if((a.skipdagen||[]).length) x+='<button class="knop klein licht" id="dp-wis">alle vrije dagen wissen</button>';
       }
-    } else {
-      x+='<div class="stil">Nog niet ingepland — zet de startdatum van de afdeling, of geef hieronder een 📌 vaste startdatum.</div>';
+    } else if(!startWaarde){
+      x+='<div class="stil">Nog niet ingepland — kies hierboven een startdatum, of zet de startdatum van de afdeling.</div>';
     }
     x+='<div class="sheetrij"><label>🏢 Bedrijf</label><button class="knop licht klein" id="ak-bedrijf">'
-      +(function(){const b=bedrijfVan(afd,a); return b? bedrijfDot(b.naam)+esc(b.naam)+(b.afwijkend?' (afwijkend)':' (standaard locatie)') : 'kiezen…';})()+'</button></div>';
-    x+='<div class="sheetrij"><label>📌 Vaste start</label><input type="date" id="ak-vast" value="'+(a.handmatige_start?a.handmatige_start.slice(0,10):'')+'">'
-      +'<button class="knop klein" id="ak-vast-ok">Zet vast</button>'
-      +(a.handmatige_start?'<button class="knop klein licht" id="ak-vast-wis">Wis 📌</button>':'')+'</div>';
-    if(gepland&&r.eind&&a.duur&&a.duur>=2) x+='<button class="knop licht breed" id="dp-overdracht">&#8618; Vanaf een datum overdragen aan ander bedrijf&hellip;</button>';
+      +(function(){const b=bedrijfVan(afd,a); return b? bedrijfDot(b.naam)+esc(b.naam)+(b.afwijkend?' (afwijkend)':' (standaard locatie)') : 'kiezen…';})()+' ✎</button></div>';
     x+='<div class="sheetrij"><button class="knop licht" id="ak-nvt">'+(a.status==='nvt'?'Weer actief maken':'Markeer als n.v.t.')+'</button>'
       +'<button class="knop rood" id="ak-del">'+(zekerDel?'Zeker weten? Tik nogmaals':'Verwijderen')+'</button></div>';
     x+='<button class="knop licht breed" id="dp-sluit">Klaar</button></div>';
     sh.innerHTML=x; sh.style.display='flex';
     sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
     document.getElementById('dp-sluit').onclick=dichtFn;
-    const ov=document.getElementById('dp-overdracht');
-    if(ov) ov.onclick=()=>overdrachtForm(afdId,actId);
     const update=async(fields,log)=>{
       const oud=planAfdeling(afd);
       try{
@@ -1099,9 +1123,17 @@ function actKaart(afdId, actId){
       update({status:volg}, afdNaam(afd)+' — "'+a.naam+'" → '+volg);
     });
     sh.querySelectorAll('button[data-dpdag]').forEach(b=>b.onclick=()=>{
-      const sk=new Set(a.skipdagen||[]);
-      if(sk.has(b.dataset.dpdag)) sk.delete(b.dataset.dpdag); else sk.add(b.dataset.dpdag);
-      update({skipdagen:Array.from(sk).sort()}, afdNaam(afd)+' — "'+a.naam+'" vrije dagen aangepast ('+sk.size+')');
+      const dIso=b.dataset.dpdag;
+      if(pd(dIso).getUTCDay()===0){
+        const pl=new Set(a.plusdagen||[]);
+        const aanzetten=!pl.has(dIso);
+        if(aanzetten) pl.add(dIso); else pl.delete(dIso);
+        update({plusdagen:Array.from(pl).sort()}, afdNaam(afd)+' — "'+a.naam+'" zondag '+dIso+(aanzetten?' aangezet':' uitgezet'));
+      } else {
+        const sk=new Set(a.skipdagen||[]);
+        if(sk.has(dIso)) sk.delete(dIso); else sk.add(dIso);
+        update({skipdagen:Array.from(sk).sort()}, afdNaam(afd)+' — "'+a.naam+'" vrije dagen aangepast ('+sk.size+')');
+      }
     });
     const wis=document.getElementById('dp-wis');
     if(wis) wis.onclick=()=>update({skipdagen:[]}, afdNaam(afd)+' — "'+a.naam+'" vrije dagen gewist');
@@ -1117,9 +1149,9 @@ function actKaart(afdId, actId){
       if(!eindIso) return;
       const eind=pd(eindIso);
       if(eind<r.start){ toast('Einddatum ligt vóór de start'); maak(); return; }
-      const sk=new Set(a.skipdagen||[]);
       let n=0;
-      for(let d=new Date(r.start); d<=eind; d.setUTCDate(d.getUTCDate()+1)){ if(!sk.has(iso(d))&&werkdag(d,afd.werkdagen)) n++; }
+      for(let d=new Date(r.start); d<=eind; d.setUTCDate(d.getUTCDate()+1)){ if(werkdagAct(d,afd,a)) n++; }
+      if(n<1) n=1;
       update({duur:n}, afdNaam(afd)+' — "'+a.naam+'" klaar op '+eindIso+' → duur '+n+' wd');
     };
     document.getElementById('ak-bedrijf').onclick=()=>{
@@ -1127,12 +1159,13 @@ function actKaart(afdId, actId){
         update({bedrijf_id:bid}, afdNaam(afd)+' — "'+a.naam+'" bedrijf → '+(bid?bedrijfNaam(bid):'standaard locatie'));
       });
     };
-    document.getElementById('ak-vast-ok').onclick=()=>{
-      const d=document.getElementById('ak-vast').value;
-      if(d) update({handmatige_start:d}, afdNaam(afd)+' — "'+a.naam+'" vaste start → '+d);
+    document.getElementById('ak-start').onchange=e=>{
+      const d=e.target.value;
+      if(d) update({handmatige_start:d}, afdNaam(afd)+' — "'+a.naam+'" start → '+d);
+      else if(a.handmatige_start) update({handmatige_start:null}, afdNaam(afd)+' — "'+a.naam+'" start weer automatisch');
     };
-    const vw=document.getElementById('ak-vast-wis');
-    if(vw) vw.onclick=()=>update({handmatige_start:null}, afdNaam(afd)+' — "'+a.naam+'" vaste start gewist');
+    const sa=document.getElementById('ak-start-auto');
+    if(sa) sa.onclick=()=>update({handmatige_start:null}, afdNaam(afd)+' — "'+a.naam+'" start weer automatisch');
     document.getElementById('ak-nvt').onclick=()=>{
       const nieuw=a.status==='nvt'?'todo':'nvt';
       update({status:nieuw}, afdNaam(afd)+' — "'+a.naam+'" → '+nieuw);
@@ -1143,66 +1176,6 @@ function actKaart(afdId, actId){
     };
   };
   maak();
-}
-
-function overdrachtForm(afdId, actId){
-  const sh=document.getElementById('sheet');
-  const afd=S.data.afdelingen.find(x=>x.id===afdId);
-  const a=S.data.activiteiten.find(x=>x.id===actId);
-  if(!afd||!a) return;
-  const rows=planAfdeling(afd);
-  const r=rows.find(x=>x.a.id===actId);
-  if(!r||!r.start||!r.eind||!a.duur||a.duur<2){ toast('Overdragen kan alleen bij een geplande activiteit van minstens 2 werkdagen'); return; }
-  const minD=new Date(r.start); minD.setUTCDate(minD.getUTCDate()+1);
-  let std=pd(vandaagISO()); std.setUTCDate(std.getUTCDate()+1);
-  if(std<minD) std=new Date(minD);
-  if(std>r.eind) std=new Date(r.eind);
-  const b=bedrijfVan(afd,a);
-  sh.innerHTML='<div class="sheetkaart"><div class="sheettitel"><span class="chip" style="background:'+kleur(a.naam)+'">'+esc(a.naam)+'</span> overdragen — '+esc(afdNaam(afd))+'</div>'
-    +'<div class="stil">'+(b?bedrijfDot(b.naam)+esc(b.naam):'Het huidige bedrijf')+' werkt t/m de dag v&oacute;&oacute;r de gekozen datum; het nieuwe bedrijf doet de resterende werkdagen en rondt af. Vervolgwerk schuift automatisch mee.</div>'
-    +'<div class="sheetrij"><label>Nieuw bedrijf start op</label><input type="date" id="ov-datum" value="'+iso(std)+'" min="'+iso(minD)+'" max="'+iso(r.eind)+'"></div>'
-    +'<div class="stil" id="ov-info"></div>'
-    +'<button class="knop breed" id="ov-kies">Kies het nieuwe bedrijf&hellip;</button>'
-    +'<button class="knop licht breed" id="ov-terug">Annuleren</button></div>';
-  sh.style.display='flex';
-  sh.onclick=e=>{ if(e.target===sh){ sh.style.display='none'; sh.innerHTML=''; } };
-  const telling=()=>{
-    const dIso=document.getElementById('ov-datum').value;
-    const dOv=pd(dIso);
-    if(!dOv||dOv<=r.start||dOv>r.eind) return null;
-    let n1=0;
-    for(let d=new Date(r.start); d<dOv; d.setUTCDate(d.getUTCDate()+1)){ if(werkdagAct(d,afd,a)) n1++; }
-    const rest=a.duur-n1;
-    if(n1<1||rest<1) return null;
-    return {dIso:dIso,dOv:dOv,n1:n1,rest:rest};
-  };
-  const info=()=>{
-    const t=telling();
-    document.getElementById('ov-info').textContent = t
-      ? 'Huidig bedrijf: '+t.n1+' werkdag(en), t/m '+fmt(new Date(t.dOv.getTime()-86400000))+'. Nieuw bedrijf: '+t.rest+' werkdag(en).'
-      : 'Kies een datum na de start en uiterlijk op de einddatum.';
-  };
-  info();
-  document.getElementById('ov-datum').onchange=info;
-  document.getElementById('ov-terug').onclick=()=>actKaart(afdId,actId);
-  document.getElementById('ov-kies').onclick=()=>{
-    const t=telling();
-    if(!t){ toast('Kies eerst een geldige datum'); return; }
-    const skips=a.skipdagen||[];
-    bedrijfKiezer('Wie neemt "'+a.naam+'" over vanaf '+fmt(t.dOv)+'?', null, async bid=>{
-      if(bid==null){ toast('Overdragen geannuleerd: geen bedrijf gekozen'); return; }
-      try{
-        await api({action:'act_splits',id:actId,
-          duur_oud:t.n1,
-          skipdagen_oud:skips.filter(s=>s<t.dIso),
-          nieuw:{duur:t.rest,bedrijf_id:bid,skipdagen:skips.filter(s=>s>=t.dIso),
-            notitie:'overgenomen van '+(b?b.naam:'vorig bedrijf')+' per '+t.dIso},
-          log:afdNaam(afd)+' — "'+a.naam+'" per '+t.dIso+' overgedragen aan '+(bedrijfNaam(bid)||'?')+' ('+t.n1+' + '+t.rest+' wd)'});
-        await laad(); S.gewijzigd=null; render();
-        toast((bedrijfNaam(bid)||'Het nieuwe bedrijf')+' gaat verder vanaf '+fmt(t.dOv)+' en rondt af');
-      }catch(e){ toast(e.message||'Overdragen mislukt'); }
-    });
-  };
 }
 
 function kopieerDuren(afdId){
