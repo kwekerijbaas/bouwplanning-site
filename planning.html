@@ -84,6 +84,9 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .legenda i{width:10px;height:10px;border-radius:3px;display:inline-block}
 /* afdeling detail */
 .actrij{display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--lijn)}
+.rijgreep{cursor:grab;touch-action:none;color:var(--grijs);padding:8px 4px;font-size:15px;user-select:none;flex:none}
+.actrij.sleepdoel{box-shadow:0 -3px 0 0 var(--groen) inset;border-top:3px solid var(--groen)}
+.actrij.sleepdoel-onder{border-bottom:3px solid var(--groen)}
 .actrij .nm{flex:1;min-width:0}
 .actrij .nm .naam{font-size:14px}
 .actrij .nm .datums{font-size:11px;color:var(--grijs)}
@@ -944,6 +947,7 @@ function rAfdDetail(app){
   rows.forEach((r,i)=>{
     const a=r.a;
     h+='<div class="actrij">'
+      +'<span class="rijgreep" data-sleep="'+a.id+'" title="sleep om de volgorde te wijzigen">☰</span>'
       +'<div style="display:flex;flex-direction:column;gap:2px"><button class="pijl" data-op="up" data-id="'+a.id+'" '+(i===0?'disabled style="opacity:.3"':'')+'>▲</button>'
       +'<button class="pijl" data-op="down" data-id="'+a.id+'" '+(i===rows.length-1?'disabled style="opacity:.3"':'')+'>▼</button></div>'
       +'<span class="chip" style="background:'+kleur(a.naam)+';width:10px;height:26px;padding:0;border-radius:4px"></span>'
@@ -1119,6 +1123,38 @@ function rAfdDetail(app){
     else if(op==='down'&&i<acts.length-1){ const ids=acts.map(x=>x.id); [ids[i+1],ids[i]]=[ids[i],ids[i+1]];
       doe({action:'act_reorder',afdeling_id:afd.id,ids}, afdNaam(afd)+' volgorde gewijzigd'); }
     else if(op==='meer'){ actKaart(afd.id,id); }
+  });
+  app.querySelectorAll('.rijgreep').forEach(g=>{
+    g.onpointerdown=e=>{
+      e.preventDefault();
+      const rijen=Array.from(app.querySelectorAll('.actrij'));
+      const van=rijen.findIndex(r=>r.querySelector('.rijgreep')===g);
+      if(van<0) return;
+      rijen[van].style.opacity='.35';
+      let doel=-1;
+      const teken=()=>{
+        rijen.forEach((r,i)=>{ r.classList.toggle('sleepdoel', i===doel); r.classList.remove('sleepdoel-onder'); });
+        if(doel===rijen.length) rijen[rijen.length-1].classList.add('sleepdoel-onder');
+      };
+      const beweeg=ev=>{
+        let d=rijen.length;
+        for(let i=0;i<rijen.length;i++){ const b=rijen[i].getBoundingClientRect(); if(ev.clientY<b.top+b.height/2){ d=i; break; } }
+        doel=d; teken();
+      };
+      const los=()=>{
+        document.removeEventListener('pointermove',beweeg);
+        document.removeEventListener('pointerup',los);
+        rijen.forEach(r=>{ r.classList.remove('sleepdoel'); r.classList.remove('sleepdoel-onder'); r.style.opacity=''; });
+        if(doel<0) return;
+        let naar=doel; if(naar>van) naar--;
+        if(naar===van) return;
+        const ids=rows.map(r=>r.a.id);
+        ids.splice(naar,0,ids.splice(van,1)[0]);
+        doe({action:'act_reorder',afdeling_id:afd.id,ids:ids}, afdNaam(afd)+' volgorde gewijzigd (gesleept)');
+      };
+      document.addEventListener('pointermove',beweeg);
+      document.addEventListener('pointerup',los);
+    };
   });
   app.querySelectorAll('button[data-actcat]').forEach(b=>b.onclick=()=>{
     const c=actCats().find(x=>x.id===+b.dataset.actcat);
