@@ -49,3 +49,5 @@ Planningsapp voor Jarno (kasrenovatie na hagelschade 27/28-06-2026). Gebruikers:
 5. Memory bijwerken (`reparatie-planning-app-jarno.md`) bij nieuwe features of besluiten.
 
 Grote functie-vervangingen in app.html: python-splice met unieke tekstankers (via scratchpad), niet met fragiele Edit-matches. Commits eindigen met de Claude-co-author-regel.
+
+Dit bestand zelf: de versie in de projectroot (`Hagelschade 2026/CLAUDE.md`) is leidend; bij elke wijziging ook de kopie in `~/git/bouwplanning-site/CLAUDE.md` bijwerken en pushen.
