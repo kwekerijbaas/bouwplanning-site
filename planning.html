@@ -346,6 +346,7 @@ function rBeheer(app){
           +'<button class="knop klein" data-bhok="blok|'+blok.id+'">opslaan</button><button class="knop klein licht" id="bh-annuleer">annuleer</button></div>';
       } else {
         h+='<div class="regel" style="padding-left:22px"><span style="flex:1">'+esc(blok.naam)+' <span class="stil">('+nb+')</span></span>'
+          +'<button class="pijl" data-bhafd="'+loc.id+'|'+blok.id+'" title="afdeling toevoegen aan deze groep">➕</button>'
           +'<button class="pijl" data-bhw="blok|'+blok.id+'" title="hernoemen">✎</button><button class="pijl" data-bhdel="blok|'+blok.id+'" title="verwijderen">🗑</button></div>';
       }
     }
@@ -415,6 +416,10 @@ function rBeheer(app){
       await api({action:s.del,id:+p[1],log:s.lbl+' verwijderd uit de lijst'});
       await laad(); render();
     }catch(e){ toast(e.message||'Verwijderen mislukt'); b.dataset.zeker=''; }
+  });
+  app.querySelectorAll('button[data-bhafd]').forEach(b=>b.onclick=()=>{
+    const p=b.dataset.bhafd.split('|');
+    afdAanmaken(+p[0],+p[1]);
   });
   app.querySelectorAll('button[data-nieuwblokok]').forEach(b=>b.onclick=()=>{
     const locId=+b.dataset.nieuwblokok;
@@ -839,11 +844,12 @@ function rAfdLijst(app){
     const blokken=S.data.blokken.filter(b=>b.locatie_id===loc.id).sort((a,b)=>a.sort-b.sort).concat([null]);
     for(const blok of blokken){
       const afds=S.data.afdelingen.filter(a=>a.locatie_id===loc.id&&(blok?a.blok_id===blok.id:!a.blok_id)).sort((a,b)=>a.sort-b.sort);
-      if(!afds.length) continue;
+      if(!afds.length&&!blok) continue;
       const klapKey='blok-'+(blok?blok.id:'ov'+loc.id);
       const isDicht=dicht.has(klapKey);
       h+='<h3 class="klap" data-klap="'+klapKey+'">'+(isDicht?'▸ ':'▾ ')+esc(blok?blok.naam:'Overig')+(isDicht?' <span class="stil">('+afds.length+' afdelingen)</span>':'')+'</h3>';
       if(isDicht) continue;
+      if(!afds.length){ h+='<div class="leeg">Nog geen afdelingen in deze groep — voeg ze toe via het tabblad ⚙️ Lijsten (➕ bij de groep).</div>'; continue; }
       for(const afd of afds){
         const rows=planAfdeling(afd);
         const totaal=rows.filter(r=>r.a.status!=='nvt').length;
@@ -884,7 +890,8 @@ function rAfdDetail(app){
     +'<label style="margin-left:auto;font-size:13px"><input type="checkbox" id="afd-actief" '+(afd.actief?'checked':'')+'> actief</label></div>';
   h+='<div class="instelrij"><label>Start</label><input type="date" id="afd-start" value="'+(afd.startdatum?afd.startdatum.slice(0,10):'')+'">'
     +'<label>Notitie</label><input type="text" id="afd-notitie" style="flex:1;min-width:140px" value="'+esc(afd.notitie)+'"></div>';
-  h+='<div class="instelrij"><label>Locatie</label><button class="knop licht klein" id="afd-verplaats">'+esc(afdPlek(afd))+' &#8250;</button></div>';
+  h+='<div class="instelrij"><label>Locatie</label><button class="knop licht klein" id="afd-verplaats">'+esc(afdPlek(afd))+' &#8250;</button>'
+    +'<button class="pijl" id="afd-del" title="afdeling verwijderen (kan alleen als hij helemaal leeg is)">🗑</button></div>';
   h+='</div>';
   if(!S.agStart) S.agStart=iso(maandagVan(pd(vandaag)));
   const agStart=pd(S.agStart);
@@ -1126,6 +1133,39 @@ function rAfdDetail(app){
   };
   document.getElementById('afd-kopieer').onclick=()=>kopieerDuren(afd.id);
   document.getElementById('afd-verplaats').onclick=()=>verplaatsAfdeling(afd.id);
+  const adel=document.getElementById('afd-del');
+  adel.onclick=async()=>{
+    if(adel.dataset.zeker!=='1'){ adel.dataset.zeker='1'; toast('Nogmaals tikken om deze afdeling definitief te verwijderen (kan alleen als hij leeg is)'); return; }
+    try{
+      await api({action:'afd_delete',id:afd.id,log:'Afdeling '+afdNaam(afd)+' verwijderd'});
+      S.selAfd=null; S.gewijzigd=null;
+      await laad(); render();
+      toast('Afdeling verwijderd');
+    }catch(e){ toast(e.message||'Verwijderen mislukt'); adel.dataset.zeker=''; }
+  };
+}
+
+function afdAanmaken(locId, blokId){
+  const sh=document.getElementById('sheet');
+  const loc=S.data.locaties.find(l=>l.id===locId);
+  const blok=S.data.blokken.find(b=>b.id===blokId);
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
+  sh.innerHTML='<div class="sheetkaart"><div class="sheettitel">➕ Nieuwe afdeling — '+esc(loc.code)+' · '+esc(blok?blok.naam:'')+'</div>'
+    +'<div class="stil">Geef de afdelingscode (bv. 12, 24 of MH5). De standaard activiteitenreeks wordt automatisch klaargezet; daarna plan je hem zoals elke andere afdeling.</div>'
+    +'<div class="sheetrij"><label>Code</label><input type="text" id="na-code" placeholder="bv. 24" style="flex:1"></div>'
+    +'<button class="knop breed" id="na-ok">Toevoegen</button>'
+    +'<button class="knop licht breed" id="na-annuleer">Annuleren</button></div>';
+  sh.style.display='flex';
+  sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+  document.getElementById('na-annuleer').onclick=dichtFn;
+  const veld=document.getElementById('na-code');
+  veld.focus();
+  document.getElementById('na-ok').onclick=()=>{
+    const v=veld.value.trim();
+    if(!v){ toast('Vul eerst de afdelingscode in'); return; }
+    dichtFn();
+    doe({action:'afd_add',locatie_id:locId,blok_id:blokId,afdcode:v}, 'Afdeling '+loc.code+' '+v+' aangemaakt');
+  };
 }
 
 function afdPlek(afd){
