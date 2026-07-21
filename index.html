@@ -187,7 +187,7 @@ const MAT_KLEUR = {glas:'#1d70b8', schermdoek:'#9b5de5', gronddoek:'#52b788', at
 const LEV_PALET=['#1d70b8','#e07a5f','#9b5de5','#2d6a4f','#f2a541','#c1442e','#52b788','#6a4c93','#bc6c25','#8d99ae'];
 function levKleur(naam){ let n=0; const s=String(naam||''); for(let i=0;i<s.length;i++) n=(n+s.charCodeAt(i)*(i+1))%LEV_PALET.length; return LEV_PALET[n]; }
 const S = { data:null, view:'week', dag:vandaagISO(), selAfd:null, weekStart:null,
-  levMaand:null, levMat:null, levBedrijf:null, levDag:null, nlBedrijf:null, ntAfd:null, ntBedrijf:null, weekBlok:null, dagBlok:null, takBedrijf:null, wkStart:null, wkVenster:null, kolBreedte:null, agStart:null, gewijzigd:null, afdTerug:null,
+  levMaand:null, levMat:null, levBedrijf:null, levDag:null, nlBedrijf:null, nlAfdIds:[], ntAfd:null, ntBedrijf:null, weekBlok:null, dagBlok:null, takBedrijf:null, wkStart:null, wkVenster:null, kolBreedte:null, agStart:null, gewijzigd:null, afdTerug:null,
   code:localStorage.getItem('rp_code')||'', wie:localStorage.getItem('rp_wie')||'' };
 function dichtSet(){ try{ return new Set(JSON.parse(localStorage.getItem('rp_dicht')||'[]')); }catch(e){ return new Set(); } }
 function dichtToggle(key){ const s=dichtSet(); if(s.has(key)) s.delete(key); else s.add(key);
@@ -525,9 +525,46 @@ function render(){
 
 /* ---- Vandaag ---- */
 function levHoortBij(l, afd){
-  const loc=S.data.locaties.find(x=>x.id===afd.locatie_id);
-  const t=(l.afdeling_tekst||'').toLowerCase();
-  return t.includes(afd.code.toLowerCase())&&t.includes(loc.code.split('/')[0].toLowerCase().slice(0,2));
+  return (l.afdeling_ids||[]).indexOf(afd.id)>-1;
+}
+function afdTekstVan(ids){
+  if(!ids||!ids.length) return '';
+  const delen=[];
+  for(const loc of S.data.locaties.slice().sort((a,b)=>a.sort-b.sort)){
+    const codes=S.data.afdelingen.filter(a=>a.locatie_id===loc.id&&ids.indexOf(a.id)>-1).sort((a,b)=>a.sort-b.sort)
+      .map(a=>isNaN(+a.code)?a.code:a.code);
+    if(codes.length) delen.push(loc.code+' afd '+codes.join('+'));
+  }
+  return delen.join(' · ');
+}
+function afdVinker(titel, huidigeIds, cb){
+  const sh=document.getElementById('sheet');
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
+  const sel=new Set(huidigeIds||[]);
+  const maak=()=>{
+    let x='<div class="sheetkaart"><div class="sheettitel">'+esc(titel)+'</div>'
+      +'<div class="stil">Tik de afdelingen aan of uit; je kunt er meerdere kiezen, ook uit verschillende locaties.</div>';
+    for(const loc of S.data.locaties.slice().sort((a,b)=>a.sort-b.sort)){
+      const afds=S.data.afdelingen.filter(a=>a.locatie_id===loc.id&&a.actief).sort((a,b)=>a.sort-b.sort);
+      if(!afds.length) continue;
+      x+='<div style="font-weight:600;font-size:13px;margin-top:4px">'+esc(loc.code)+'</div><div class="keuze">';
+      for(const a of afds) x+='<button data-va="'+a.id+'" class="'+(sel.has(a.id)?'aan':'')+'">'+esc(isNaN(+a.code)?a.code:('afd '+a.code))+'</button>';
+      x+='</div>';
+    }
+    x+='<div class="stil" id="va-samenvatting">'+(sel.size?esc(afdTekstVan(Array.from(sel))):'nog niets aangevinkt')+'</div>'
+      +'<button class="knop breed" id="va-ok">Klaar ('+sel.size+' afdeling'+(sel.size===1?'':'en')+')</button>'
+      +'<button class="knop licht breed" id="va-annuleer">Annuleren</button></div>';
+    sh.innerHTML=x; sh.style.display='flex';
+    sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+    document.getElementById('va-annuleer').onclick=dichtFn;
+    sh.querySelectorAll('button[data-va]').forEach(b=>b.onclick=()=>{
+      const id=+b.dataset.va;
+      if(sel.has(id)) sel.delete(id); else sel.add(id);
+      maak();
+    });
+    document.getElementById('va-ok').onclick=()=>{ dichtFn(); cb(Array.from(sel)); };
+  };
+  maak();
 }
 function rVandaag(app){
   const dag=pd(S.dag);
@@ -776,8 +813,7 @@ function rWeekDetail(app){
                 +(bv?'<br><span class="stil">'+bedrijfDot(bv.naam)+esc(bv.naam)+'</span>':'')+'</div>';
             }
           }
-          const levs=S.data.leveringen.filter(l=>{ if(!l.datum||l.datum.slice(0,10)!==dIso) return false;
-            return (l.afdeling_tekst||'').toLowerCase().includes(afd.code.toLowerCase())&&(l.afdeling_tekst||'').toLowerCase().includes(loc.code.split('/')[0].toLowerCase().slice(0,2)); });
+          const levs=S.data.leveringen.filter(l=>l.datum&&l.datum.slice(0,10)===dIso&&levHoortBij(l,afd));
           for(const l of levs) segs+='<div class="wblok" style="border-left-color:'+(l.ontvangen?'#52b788':'#c1442e')+'">📦 '+esc(levBedrijfNaam(l))+' · '+esc(l.materiaal)+(l.ontvangen?' ✓':'')+'</div>';
           h+='<td><div class="wcel breed" data-afd="'+afd.id+'">'+segs+'</div></td>';
         }
@@ -1268,7 +1304,8 @@ function levKaart(levId){
       +'<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="lk-ontv" '+(l.ontvangen?'checked':'')+'> ontvangen</label></div>'
       +'<div class="sheetrij"><label>Bedrijf</label><button class="knop licht klein" id="lk-bedrijf">'+bedrijfDot(nm)+esc(nm)+' ✎</button></div>'
       +'<div class="sheetrij"><label>Materiaal</label><span class="keuze">'+['glas','schermdoek','gronddoek','atlasdraad','overig'].map(m=>'<button data-lkmat="'+m+'" class="'+(l.materiaal===m?'aan':'')+'">'+m+'</button>').join('')+'</span></div>'
-      +'<div class="sheetrij"><label>Afdeling(en)</label><input type="text" id="lk-afd" value="'+esc(l.afdeling_tekst||'')+'" style="flex:1"></div>'
+      +'<div class="sheetrij"><label>Afdelingen</label><button class="knop licht klein" id="lk-afd">'
+      +((l.afdeling_ids||[]).length?'📍 '+esc(afdTekstVan(l.afdeling_ids)):'📍 afdelingen aanvinken…')+'</button></div>'
       +'<div class="sheetrij"><label>Omschrijving</label><input type="text" id="lk-oms" value="'+esc(l.omschrijving||'')+'" style="flex:1"></div>'
       +(l.bron?'<div class="stil">bron: '+esc(l.bron)+'</div>':'')
       +'<div class="sheetrij"><button class="knop rood" id="lk-del">'+(zeker?'Zeker weten? Tik nogmaals':'Verwijderen')+'</button></div>'
@@ -1288,7 +1325,11 @@ function levKaart(levId){
       });
     };
     sh.querySelectorAll('button[data-lkmat]').forEach(b=>b.onclick=()=>upd({materiaal:b.dataset.lkmat},'Levering '+nm+' materiaal → '+b.dataset.lkmat));
-    document.getElementById('lk-afd').onchange=e=>upd({afdeling_tekst:e.target.value.trim()});
+    document.getElementById('lk-afd').onclick=()=>{
+      afdVinker('Voor welke afdelingen is deze levering?', l.afdeling_ids||[], ids=>{
+        upd({afdeling_ids:ids, afdeling_tekst:afdTekstVan(ids)}, 'Levering '+nm+' afdelingen → '+(afdTekstVan(ids)||'geen'));
+      });
+    };
     document.getElementById('lk-oms').onchange=e=>upd({omschrijving:e.target.value.trim()});
     document.getElementById('lk-del').onclick=()=>{
       if(!zeker){ zeker=true; maak(); return; }
@@ -1423,8 +1464,9 @@ function rLeveringen(app){
     +(S.data.bedrijven||[]).map(b=>'<button data-nb="'+b.id+'" class="'+(S.nlBedrijf===b.id?'aan':'')+'">'+bedrijfDot(b.naam)+esc(b.naam)+'</button>').join('')
     +'<button data-nb="nieuw">+ nieuw bedrijf</button></span></div>'
     +'<div class="instelrij"><label>Materiaal</label><span class="keuze" id="nl-materiaal">'+['glas','schermdoek','gronddoek','atlasdraad','overig'].map((m,i)=>'<button data-mat="'+m+'" class="'+(i===0?'aan':'')+'">'+m+'</button>').join('')+'</span></div>'
+    +'<div class="instelrij"><label>Afdelingen</label><button class="knop licht klein" id="nl-afdknop">'
+    +(S.nlAfdIds&&S.nlAfdIds.length?'📍 '+esc(afdTekstVan(S.nlAfdIds)):'📍 afdelingen aanvinken…')+'</button></div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
-    +'<input type="text" id="nl-afd" placeholder="afdeling(en), bv. EW2 afd 1+2" style="flex:1;min-width:150px">'
     +'<input type="text" id="nl-oms" placeholder="omschrijving (aantal kisten …)" style="flex:2;min-width:150px"></div>'
     +'<div class="instelrij" style="align-items:flex-start"><label style="padding-top:8px">Leverdatum(s)</label>'
     +'<span id="nl-datums" style="display:flex;flex-direction:column;gap:6px"><span style="display:flex;gap:4px"><input type="date" class="nl-datum" value="'+vandaag+'"></span></span>'
@@ -1461,12 +1503,21 @@ function rLeveringen(app){
     app.querySelector('.nl-datum').value=S.levDag;
     document.getElementById('nl-kaart').scrollIntoView({behavior:'smooth'});
   };
+  document.getElementById('nl-afdknop').onclick=()=>{
+    afdVinker('Voor welke afdelingen is deze levering?', S.nlAfdIds||[], ids=>{
+      S.nlAfdIds=ids;
+      const kn=document.getElementById('nl-afdknop');
+      if(kn) kn.innerHTML=ids.length?'📍 '+esc(afdTekstVan(ids)):'📍 afdelingen aanvinken…';
+    });
+  };
   document.getElementById('nl-knop').onclick=async()=>{
     const datums=Array.from(app.querySelectorAll('.nl-datum')).map(i=>i.value).filter(Boolean);
+    const ids=S.nlAfdIds||[];
     const basis={ bedrijf_id:S.nlBedrijf,
       leverancier:S.nlBedrijf?(bedrijfNaam(S.nlBedrijf)||''):'',
       materiaal:app.querySelector('#nl-materiaal button.aan').dataset.mat,
-      afdeling_tekst:document.getElementById('nl-afd').value.trim(),
+      afdeling_ids:ids,
+      afdeling_tekst:afdTekstVan(ids),
       omschrijving:document.getElementById('nl-oms').value.trim(), bron:'handmatig ('+S.wie+')' };
     if(!basis.bedrijf_id){toast('Kies eerst een bedrijf');return;}
     if(!datums.length){toast('Vul minstens één leverdatum in');return;}
@@ -1478,6 +1529,7 @@ function rLeveringen(app){
         await api({action:'lev_add',fields:f,
           log:'Levering toegevoegd: '+basis.leverancier+' '+basis.materiaal+' '+datums[i]+(datums.length>1?' (deel '+(i+1)+'/'+datums.length+')':'')});
       }
+      S.nlAfdIds=[];
       await laad(); render();
       toast(datums.length>1?datums.length+' deelleveringen toegevoegd':'Levering toegevoegd');
     }catch(e){ toast(e.message||'Toevoegen mislukt'); }
@@ -1731,7 +1783,6 @@ function voorstelBewerken(vId){
     if(isLev){
       w.datum=el('vb-datum').value||null;
       w.materiaal=el('vb-mat').value.trim();
-      w.afdeling_tekst=el('vb-afd').value.trim();
       w.omschrijving=el('vb-oms').value.trim();
     } else {
       w.omschrijving=el('vb-oms').value.trim();
@@ -1744,7 +1795,8 @@ function voorstelBewerken(vId){
       const bNaam=w.bedrijf_id?(bedrijfNaam(w.bedrijf_id)||''):'';
       x+='<div class="sheetrij"><label>Datum</label><input type="date" id="vb-datum" value="'+esc(String(w.datum||'').slice(0,10))+'"></div>'
         +'<div class="sheetrij"><label>Materiaal</label><input type="text" id="vb-mat" value="'+esc(w.materiaal||'')+'" style="flex:1"></div>'
-        +'<div class="sheetrij"><label>Afdeling(en)</label><input type="text" id="vb-afd" value="'+esc(w.afdeling_tekst||'')+'" style="flex:1"></div>'
+        +'<div class="sheetrij"><label>Afdelingen</label><button class="knop licht klein" id="vb-afd">'
+        +((w.afdeling_ids||[]).length?'📍 '+esc(afdTekstVan(w.afdeling_ids)):(w.afdeling_tekst?'📍 "'+esc(w.afdeling_tekst)+'" — tik om aan te vinken':'📍 afdelingen aanvinken…'))+'</button></div>'
         +'<div class="sheetrij"><label>Omschrijving</label><input type="text" id="vb-oms" value="'+esc(w.omschrijving||'')+'" style="flex:1"></div>'
         +'<div class="sheetrij"><label>Bedrijf</label><button class="knop licht klein" id="vb-bedrijf">'
         +(bNaam?bedrijfDot(bNaam)+esc(bNaam):(w.leverancier?esc(w.leverancier):'kiezen…'))+'</button></div>';
@@ -1763,6 +1815,15 @@ function voorstelBewerken(vId){
       bedrijfKiezer('Bedrijf voor deze levering', w.bedrijf_id||null, bid=>{
         w.bedrijf_id=bid;
         if(bid) w.leverancier=bedrijfNaam(bid)||w.leverancier;
+        maak();
+      });
+    };
+    const va=document.getElementById('vb-afd');
+    if(va) va.onclick=()=>{
+      lees();
+      afdVinker('Voor welke afdelingen is deze levering?', w.afdeling_ids||[], ids=>{
+        w.afdeling_ids=ids;
+        if(ids.length) w.afdeling_tekst=afdTekstVan(ids);
         maak();
       });
     };
@@ -1813,8 +1874,22 @@ function toonLogin(){
     }catch(e){ document.getElementById('lg-fout').style.display='block'; }
   });
 }
-setInterval(async()=>{ if(S.data&&document.visibilityState==='visible'){ try{ await laad(); render(); }catch(e){} } }, 90000);
-document.addEventListener('visibilitychange',async()=>{ if(document.visibilityState==='visible'&&S.data){ try{ await laad(); render(); }catch(e){} } });
+function invoerActief(){
+  // Nooit automatisch verversen terwijl er iets ingevuld of geopend is — anders raakt invoer kwijt.
+  const sheet=document.getElementById('sheet');
+  if(sheet&&sheet.style.display==='flex') return true;
+  const ae=document.activeElement;
+  if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT')) return true;
+  const app=document.getElementById('app');
+  if(app){
+    for(const inp of app.querySelectorAll('input[type=text],textarea')) if(inp.value!==inp.defaultValue) return true;
+    if(app.querySelectorAll('.nl-datum').length>1) return true;
+  }
+  if((S.nlAfdIds||[]).length) return true;
+  return false;
+}
+setInterval(async()=>{ if(S.data&&document.visibilityState==='visible'&&!invoerActief()){ try{ await laad(); render(); }catch(e){} } }, 90000);
+document.addEventListener('visibilitychange',async()=>{ if(document.visibilityState==='visible'&&S.data&&!invoerActief()){ try{ await laad(); render(); }catch(e){} } });
 start();
 </script>
 </body>
