@@ -69,7 +69,9 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .agbalk{height:16px;width:100%;min-width:18px;border-radius:3px;cursor:pointer}
 .agbalk.agnieuw{outline:2px solid var(--oranje)}
 .aggreep{position:absolute;top:50%;right:-2px;transform:translateY(-50%);width:18px;height:26px;cursor:col-resize;touch-action:none;z-index:3;display:flex;align-items:center;justify-content:center}
+.aggreep.links{left:-2px;right:auto}
 .aggreep i{width:4px;height:15px;border-radius:2px;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.35)}
+.agbalk{touch-action:pan-y}
 .agskip{height:16px;width:100%;min-width:18px;border-radius:3px;background:repeating-linear-gradient(45deg,#e8e8e8,#e8e8e8 3px,#fff 3px,#fff 6px);cursor:pointer}
 .aglev{font-size:13px;cursor:pointer}
 .aglev.ok{opacity:.45}
@@ -894,6 +896,7 @@ function rAfdDetail(app){
       } else if(r.start&&!r.eind&&iso(r.start)===dIso){
         cel='<div class="agbalk" data-agact="'+r.a.id+'" title="start bekend, duur nog invullen" style="background:'+kleur(r.a.naam)+';opacity:.45;border:1px dashed #666"></div>';
       }
+      if(r.start&&r.eind&&dIso===iso(r.start)) cel='<span class="aggreep links" data-lgreep="'+r.a.id+'" title="sleep naar links om eerder te beginnen — het einde blijft staan"><i></i></span>'+cel;
       if(r.start&&r.eind&&dIso===iso(r.eind)) cel+='<span class="aggreep" data-greep="'+r.a.id+'" title="sleep naar links of rechts om korter of langer te maken"><i></i></span>';
       h+='<td><div class="agcel"'+(cel?'':' data-agdag="'+r.a.id+'|'+dIso+'" title="tik om deze activiteit hier te laten beginnen"')+'>'+cel+'</div></td>';
     }
@@ -901,7 +904,7 @@ function rAfdDetail(app){
   }
   h+='</table></div>';
   h+='<div class="stil" style="margin-top:4px">'+(ietsGepland
-    ?'Vol = gedaan/bezig, licht = gepland, arcering = vrije dag. Sleep het greepje aan het einde van een balk naar links of rechts om korter of langer te maken; tik op een balk voor alle details.'
+    ?'Vol = gedaan/bezig, licht = gepland, arcering = vrije dag. Sleep de balk zelf om hem in z&#39;n geheel te verplaatsen (ook terug in de tijd), sleep het greepje links of rechts om de balk aan die kant langer of korter te maken; tik op een balk voor alle details.'
     :'Nog niets ingepland: zet hierboven een startdatum en geef hieronder per activiteit de werkdagen op — de agenda vult zich dan vanzelf.')+'</div></div>';
   h+='<div class="kaart"><h2>Activiteiten (volgorde = planning)</h2>';
   rows.forEach((r,i)=>{
@@ -939,8 +942,72 @@ function rAfdDetail(app){
   document.getElementById('ag-vorig').onclick=()=>{const d=pd(S.agStart);d.setUTCDate(d.getUTCDate()-14);S.agStart=iso(d);render();};
   document.getElementById('ag-volgend').onclick=()=>{const d=pd(S.agStart);d.setUTCDate(d.getUTCDate()+14);S.agStart=iso(d);render();};
   document.getElementById('ag-nu').onclick=()=>{S.agStart=iso(maandagVan(pd(vandaagISO())));render();};
-  app.querySelectorAll('[data-agact]').forEach(el=>el.onclick=()=>actKaart(afd.id,+el.dataset.agact));
+  let sleepte=false;
+  const kolVan=(tr,x)=>{
+    const cellen=Array.from(tr.querySelectorAll('td')).slice(1).map(td=>td.querySelector('.agcel'));
+    for(let i=0;i<cellen.length;i++){ const b=cellen[i].getBoundingClientRect(); if(x>=b.left&&x<=b.right) return i; }
+    return -1;
+  };
+  app.querySelectorAll('[data-agact]').forEach(el=>el.onclick=()=>{ if(sleepte){ sleepte=false; return; } actKaart(afd.id,+el.dataset.agact); });
   app.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>actKaart(afd.id,+el.dataset.open));
+  app.querySelectorAll('.aggreep[data-lgreep]').forEach(g=>{
+    g.onclick=e=>e.stopPropagation();
+    g.onpointerdown=e=>{
+      e.preventDefault(); e.stopPropagation();
+      const actId=+g.dataset.lgreep;
+      const r=rows.find(x=>x.a.id===actId);
+      if(!r||!r.start||!r.eind) return;
+      const tr=g.closest('tr');
+      const cellen=Array.from(tr.querySelectorAll('td')).slice(1).map(td=>td.querySelector('.agcel'));
+      let doel=-1;
+      const teken=()=>cellen.forEach((c,i)=>c.classList.toggle('agdoel', doel>=0&&i>=doel&&dagen[i]<=r.eind));
+      const beweeg=ev=>{ const i=kolVan(tr,ev.clientX); if(i>=0&&dagen[i]<=r.eind){ doel=i; teken(); } };
+      const los=()=>{
+        document.removeEventListener('pointermove',beweeg); document.removeEventListener('pointerup',los);
+        cellen.forEach(c=>c.classList.remove('agdoel'));
+        if(doel<0) return;
+        const ns=dagen[doel];
+        if(iso(ns)===iso(r.start)) return;
+        let n=0;
+        for(let d=new Date(ns); d<=r.eind; d.setUTCDate(d.getUTCDate()+1)) if(werkdagAct(d,afd,r.a)) n++;
+        if(n<1) n=1;
+        doe({action:'act_update',id:actId,fields:{handmatige_start:iso(ns),duur:n}}, afdNaam(afd)+' — "'+r.a.naam+'" start → '+iso(ns)+' ('+n+' wd, einde blijft)');
+      };
+      document.addEventListener('pointermove',beweeg); document.addEventListener('pointerup',los);
+    };
+  });
+  app.querySelectorAll('.agbalk[data-agact]').forEach(b=>{
+    b.onpointerdown=e=>{
+      const actId=+b.dataset.agact;
+      const r=rows.find(x=>x.a.id===actId);
+      if(!r||!r.start||!r.eind) return;
+      const tr=b.closest('tr');
+      const cellen=Array.from(tr.querySelectorAll('td')).slice(1).map(td=>td.querySelector('.agcel'));
+      const downIdx=kolVan(tr,e.clientX);
+      if(downIdx<0) return;
+      let delta=0, actief=false;
+      const startX=e.clientX;
+      const teken=()=>{
+        const s=new Date(r.start); s.setUTCDate(s.getUTCDate()+delta);
+        const e2=new Date(r.eind); e2.setUTCDate(e2.getUTCDate()+delta);
+        cellen.forEach((c,i)=>c.classList.toggle('agdoel', dagen[i]>=s&&dagen[i]<=e2));
+      };
+      const beweeg=ev=>{
+        if(!actief&&Math.abs(ev.clientX-startX)<8) return;
+        actief=true; sleepte=true;
+        const i=kolVan(tr,ev.clientX);
+        if(i>=0){ delta=i-downIdx; teken(); }
+      };
+      const los=()=>{
+        document.removeEventListener('pointermove',beweeg); document.removeEventListener('pointerup',los);
+        cellen.forEach(c=>c.classList.remove('agdoel'));
+        if(!actief||delta===0) return;
+        const ns=new Date(r.start); ns.setUTCDate(ns.getUTCDate()+delta);
+        doe({action:'act_update',id:actId,fields:{handmatige_start:iso(ns)}}, afdNaam(afd)+' — "'+r.a.naam+'" verplaatst naar '+iso(ns));
+      };
+      document.addEventListener('pointermove',beweeg); document.addEventListener('pointerup',los);
+    };
+  });
   app.querySelectorAll('.agcel[data-agdag]').forEach(el=>el.onclick=async()=>{
     const p=el.dataset.agdag.split('|');
     const act=S.data.activiteiten.find(x=>x.id===+p[0]);
@@ -958,7 +1025,7 @@ function rAfdDetail(app){
   const gl=document.getElementById('ag-naar-lev');
   if(gl) gl.onclick=()=>{ S.view='leveringen'; S.selAfd=null; render(); window.scrollTo(0,0); };
   app.querySelectorAll('.aglev[data-levkaart]').forEach(el=>el.onclick=e=>{ e.stopPropagation(); levKaart(+el.dataset.levkaart); });
-  app.querySelectorAll('.aggreep').forEach(g=>{
+  app.querySelectorAll('.aggreep[data-greep]').forEach(g=>{
     g.onclick=e=>e.stopPropagation();
     g.onpointerdown=e=>{
       e.preventDefault(); e.stopPropagation();
