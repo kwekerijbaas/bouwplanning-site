@@ -85,8 +85,8 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 /* afdeling detail */
 .actrij{display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--lijn)}
 .rijgreep{cursor:grab;touch-action:none;color:var(--grijs);padding:8px 4px;font-size:15px;user-select:none;flex:none}
-.actrij.sleepdoel{box-shadow:0 -3px 0 0 var(--groen) inset;border-top:3px solid var(--groen)}
-.actrij.sleepdoel-onder{border-bottom:3px solid var(--groen)}
+.sleepdoel{border-top:3px solid var(--groen)}
+.sleepdoel-onder{border-bottom:3px solid var(--groen)}
 .actrij .nm{flex:1;min-width:0}
 .actrij .nm .naam{font-size:14px}
 .actrij .nm .datums{font-size:11px;color:var(--grijs)}
@@ -859,6 +859,7 @@ function rAfdLijst(app){
         const klaar=rows.filter(r=>r.a.status==='klaar').length;
         const volgende=rows.find(r=>r.a.status==='todo'||r.a.status==='bezig');
         h+='<div class="regel" data-afd="'+afd.id+'" style="cursor:pointer;'+(afd.actief?'':'opacity:.45')+'">'
+          +'<span class="rijgreep" data-afdsleep="'+afd.id+'" data-groep="'+klapKey+'" title="sleep om de volgorde te wijzigen">☰</span>'
           +'<b style="min-width:56px">'+esc(isNaN(+afd.code)?afd.code:('afd '+afd.code))+'</b>'
           +'<span style="flex:1" class="stil">'+(afd.actief? (volgende? esc(volgende.a.naam)+' · '+fmt(volgende.start) : (klaar===totaal&&totaal>0?'✅ gereed':'—')) :'inactief')+'</span>'
           +'<span class="stil">'+klaar+'/'+totaal+'</span><span style="color:var(--grijs)">›</span></div>';
@@ -869,6 +870,40 @@ function rAfdLijst(app){
   app.innerHTML=h;
   app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='lijst';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
+  app.querySelectorAll('.rijgreep[data-afdsleep]').forEach(g=>{
+    g.onclick=e=>e.stopPropagation();
+    g.onpointerdown=e=>{
+      e.preventDefault(); e.stopPropagation();
+      const grepen=Array.from(app.querySelectorAll('.rijgreep[data-afdsleep][data-groep="'+g.dataset.groep+'"]'));
+      const rijen=grepen.map(x=>x.closest('.regel'));
+      const van=grepen.indexOf(g);
+      if(van<0||rijen.length<2) return;
+      rijen[van].style.opacity='.35';
+      let doel=-1;
+      const teken=()=>{
+        rijen.forEach((r,i)=>{ r.classList.toggle('sleepdoel', i===doel); r.classList.remove('sleepdoel-onder'); });
+        if(doel===rijen.length) rijen[rijen.length-1].classList.add('sleepdoel-onder');
+      };
+      const beweeg=ev=>{
+        let d=rijen.length;
+        for(let i=0;i<rijen.length;i++){ const b=rijen[i].getBoundingClientRect(); if(ev.clientY<b.top+b.height/2){ d=i; break; } }
+        doel=d; teken();
+      };
+      const los=()=>{
+        document.removeEventListener('pointermove',beweeg);
+        document.removeEventListener('pointerup',los);
+        rijen.forEach(r=>{ r.classList.remove('sleepdoel'); r.classList.remove('sleepdoel-onder'); r.style.opacity=''; });
+        if(doel<0) return;
+        let naar=doel; if(naar>van) naar--;
+        if(naar===van) return;
+        const ids=grepen.map(x=>+x.dataset.afdsleep);
+        ids.splice(naar,0,ids.splice(van,1)[0]);
+        doe({action:'afd_reorder',ids:ids}, 'Afdelingsvolgorde gewijzigd (gesleept)');
+      };
+      document.addEventListener('pointermove',beweeg);
+      document.addEventListener('pointerup',los);
+    };
+  });
 }
 
 /* ---- Afdeling detail ---- */
