@@ -841,7 +841,7 @@ function rAfdLijst(app){
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     const locKey='loc-'+loc.id;
     const locDicht=dicht.has(locKey);
-    h+='<div class="kaart"><h2 class="klap" data-klap="'+locKey+'">'+(locDicht?'▸ ':'▾ ')+esc(loc.code)+' — '+esc(loc.naam)
+    h+='<div class="kaart"><h2 class="klap" data-klap="'+locKey+'"><span class="rijgreep" data-locsleep="'+loc.id+'" title="sleep om de locatievolgorde te wijzigen">☰</span> '+(locDicht?'▸ ':'▾ ')+esc(loc.code)+' — '+esc(loc.naam)
       +(locDicht?' <span class="stil">('+S.data.afdelingen.filter(a=>a.locatie_id===loc.id).length+' afdelingen)</span>':'')+'</h2>';
     if(locDicht){ h+='</div>'; continue; }
     const blokken=S.data.blokken.filter(b=>b.locatie_id===loc.id).sort((a,b)=>a.sort-b.sort).concat([null]);
@@ -870,6 +870,40 @@ function rAfdLijst(app){
   app.innerHTML=h;
   app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='lijst';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
+  app.querySelectorAll('.rijgreep[data-locsleep]').forEach(g=>{
+    g.onclick=e=>e.stopPropagation();
+    g.onpointerdown=e=>{
+      e.preventDefault(); e.stopPropagation();
+      const grepen=Array.from(app.querySelectorAll('.rijgreep[data-locsleep]'));
+      const koppen=grepen.map(x=>x.closest('h2'));
+      const van=grepen.indexOf(g);
+      if(van<0||koppen.length<2) return;
+      koppen[van].style.opacity='.35';
+      let doel=-1;
+      const teken=()=>{
+        koppen.forEach((k,i)=>{ k.classList.toggle('sleepdoel', i===doel); k.classList.remove('sleepdoel-onder'); });
+        if(doel===koppen.length) koppen[koppen.length-1].classList.add('sleepdoel-onder');
+      };
+      const beweeg=ev=>{
+        let d=koppen.length;
+        for(let i=0;i<koppen.length;i++){ const b=koppen[i].getBoundingClientRect(); if(ev.clientY<b.top+b.height/2){ d=i; break; } }
+        doel=d; teken();
+      };
+      const los=()=>{
+        document.removeEventListener('pointermove',beweeg);
+        document.removeEventListener('pointerup',los);
+        koppen.forEach(k=>{ k.classList.remove('sleepdoel'); k.classList.remove('sleepdoel-onder'); k.style.opacity=''; });
+        if(doel<0) return;
+        let naar=doel; if(naar>van) naar--;
+        if(naar===van) return;
+        const ids=grepen.map(x=>+x.dataset.locsleep);
+        ids.splice(naar,0,ids.splice(van,1)[0]);
+        doe({action:'locatie_reorder',ids:ids}, 'Locatievolgorde gewijzigd (gesleept)');
+      };
+      document.addEventListener('pointermove',beweeg);
+      document.addEventListener('pointerup',los);
+    };
+  });
   app.querySelectorAll('.rijgreep[data-bloksleep]').forEach(g=>{
     g.onclick=e=>e.stopPropagation();
     g.onpointerdown=e=>{
