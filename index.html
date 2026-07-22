@@ -850,7 +850,7 @@ function rAfdLijst(app){
       if(!afds.length&&!blok) continue;
       const klapKey='blok-'+(blok?blok.id:'ov'+loc.id);
       const isDicht=dicht.has(klapKey);
-      h+='<h3 class="klap" data-klap="'+klapKey+'">'+(isDicht?'▸ ':'▾ ')+esc(blok?blok.naam:'Overig')+(isDicht?' <span class="stil">('+afds.length+' afdelingen)</span>':'')+'</h3>';
+      h+='<h3 class="klap" data-klap="'+klapKey+'">'+(blok?'<span class="rijgreep" data-bloksleep="'+blok.id+'" data-loc="'+loc.id+'" title="sleep om de groepsvolgorde te wijzigen">☰</span> ':'')+(isDicht?'▸ ':'▾ ')+esc(blok?blok.naam:'Overig')+(isDicht?' <span class="stil">('+afds.length+' afdelingen)</span>':'')+'</h3>';
       if(isDicht) continue;
       if(!afds.length){ h+='<div class="leeg">Nog geen afdelingen in deze groep — voeg ze toe via het tabblad ⚙️ Lijsten (➕ bij de groep).</div>'; continue; }
       for(const afd of afds){
@@ -870,6 +870,40 @@ function rAfdLijst(app){
   app.innerHTML=h;
   app.querySelectorAll('[data-afd]').forEach(el=>el.onclick=()=>{S.selAfd=+el.dataset.afd;S.afdTerug='lijst';render();window.scrollTo(0,0);});
   app.querySelectorAll('[data-klap]').forEach(el=>el.onclick=()=>{dichtToggle(el.dataset.klap);render();});
+  app.querySelectorAll('.rijgreep[data-bloksleep]').forEach(g=>{
+    g.onclick=e=>e.stopPropagation();
+    g.onpointerdown=e=>{
+      e.preventDefault(); e.stopPropagation();
+      const grepen=Array.from(app.querySelectorAll('.rijgreep[data-bloksleep][data-loc="'+g.dataset.loc+'"]'));
+      const koppen=grepen.map(x=>x.closest('h3'));
+      const van=grepen.indexOf(g);
+      if(van<0||koppen.length<2) return;
+      koppen[van].style.opacity='.35';
+      let doel=-1;
+      const teken=()=>{
+        koppen.forEach((k,i)=>{ k.classList.toggle('sleepdoel', i===doel); k.classList.remove('sleepdoel-onder'); });
+        if(doel===koppen.length) koppen[koppen.length-1].classList.add('sleepdoel-onder');
+      };
+      const beweeg=ev=>{
+        let d=koppen.length;
+        for(let i=0;i<koppen.length;i++){ const b=koppen[i].getBoundingClientRect(); if(ev.clientY<b.top+b.height/2){ d=i; break; } }
+        doel=d; teken();
+      };
+      const los=()=>{
+        document.removeEventListener('pointermove',beweeg);
+        document.removeEventListener('pointerup',los);
+        koppen.forEach(k=>{ k.classList.remove('sleepdoel'); k.classList.remove('sleepdoel-onder'); k.style.opacity=''; });
+        if(doel<0) return;
+        let naar=doel; if(naar>van) naar--;
+        if(naar===van) return;
+        const ids=grepen.map(x=>+x.dataset.bloksleep);
+        ids.splice(naar,0,ids.splice(van,1)[0]);
+        doe({action:'blok_reorder',ids:ids}, 'Groepsvolgorde gewijzigd (gesleept)');
+      };
+      document.addEventListener('pointermove',beweeg);
+      document.addEventListener('pointerup',los);
+    };
+  });
   app.querySelectorAll('.rijgreep[data-afdsleep]').forEach(g=>{
     g.onclick=e=>e.stopPropagation();
     g.onpointerdown=e=>{
