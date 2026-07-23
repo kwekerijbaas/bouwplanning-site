@@ -569,7 +569,7 @@ function rVandaag(app){
   const dag=pd(S.dag);
   const scopeBlok=S.dagBlok?(S.data.blokken||[]).find(b=>b.id===S.dagBlok):null;
   const scopeAfdIds=scopeBlok?new Set(S.data.afdelingen.filter(a=>a.blok_id===scopeBlok.id).map(a=>a.id)):null;
-  let h='<div class="dagnav"><button id="d-vorig">‹</button><div class="datum">'+fmtLang(dag)+(S.dag===vandaagISO()?' (vandaag)':'')+'</div><button id="d-volgend">›</button><button id="d-nu" style="font-size:12px">vandaag</button></div>';
+  let h='<div class="dagnav"><button id="d-vorig">‹</button><div class="datum">'+fmtLang(dag)+' <span class="stil">· wk '+isoWeek(dag).week+'</span>'+(S.dag===vandaagISO()?' (vandaag)':'')+'</div><button id="d-volgend">›</button><button id="d-nu" style="font-size:12px">vandaag</button></div>';
   if(scopeBlok) h+='<div class="stil" style="margin-bottom:8px">Alleen blok "'+esc(scopeBlok.naam)+'" — <a href="#" id="v-heelblok">alles van deze dag tonen</a></div>';
   let levs=S.data.leveringen.filter(l=>l.datum&&l.datum.slice(0,10)===S.dag);
   if(scopeAfdIds) levs=levs.filter(l=>S.data.afdelingen.some(a=>scopeAfdIds.has(a.id)&&levHoortBij(l,a)));
@@ -1004,10 +1004,10 @@ function rAfdDetail(app){
   const dagen=[]; for(let i=0;i<14;i++){ const d=new Date(agStart); d.setUTCDate(d.getUTCDate()+i); dagen.push(d); }
   const DG=['ma','di','wo','do','vr','za','zo'];
   h+='<div class="kaart"><h2>📅 Agenda per dag</h2>'
-    +'<div class="dagnav"><button id="ag-vorig">‹</button><div class="datum">'+fmt(dagen[0])+' t/m '+fmt(dagen[13])+'</div><button id="ag-volgend">›</button><button id="ag-nu" style="font-size:12px">vandaag</button></div>';
+    +'<div class="dagnav"><button id="ag-vorig">‹</button><div class="datum">'+fmt(dagen[0])+' t/m '+fmt(dagen[13])+' <span class="stil">· wk '+isoWeek(dagen[0]).week+'–'+isoWeek(dagen[13]).week+'</span></div><button id="ag-volgend">›</button><button id="ag-nu" style="font-size:12px">vandaag</button></div>';
   h+='<div id="wg"><table><tr class="kop"><th class="naam">Activiteit</th>';
   for(const d of dagen){ const dIso=iso(d);
-    h+='<th class="'+(dIso===vandaag?'wknu':'')+'">'+DG[(d.getUTCDay()+6)%7]+'<br><span style="font-weight:400">'+d.getUTCDate()+'/'+(d.getUTCMonth()+1)+'</span></th>'; }
+    h+='<th class="'+(dIso===vandaag?'wknu':'')+'">'+(d.getUTCDay()===1?'<span style="color:var(--groen)">wk '+isoWeek(d).week+'</span><br>':'')+DG[(d.getUTCDay()+6)%7]+'<br><span style="font-weight:400">'+d.getUTCDate()+'/'+(d.getUTCMonth()+1)+'</span></th>'; }
   h+='</tr>';
   const afdLevs=S.data.leveringen.filter(l=>l.datum&&levHoortBij(l,afd));
   if(afdLevs.length){
@@ -1617,7 +1617,7 @@ function rLeveringen(app){
       const dIso=iso(d);
       const dagLevs=gefilterd.filter(l=>l.datum&&l.datum.slice(0,10)===dIso);
       h+='<div class="kaldag'+(d.getUTCMonth()===mnd-1?'':' buiten')+(dIso===vandaag?' nu':'')+(S.levDag===dIso?' sel':'')+'" data-ldag="'+dIso+'">'
-        +'<div class="kalnr">'+d.getUTCDate()+'</div>'
+        +'<div class="kalnr">'+d.getUTCDate()+(i===0?' <span style="float:right;color:var(--groen);font-weight:600">wk '+isoWeek(d).week+'</span>':'')+'</div>'
         +dagLevs.slice(0,3).map(function(l){ const n=levBedrijfNaam(l);
           return '<div class="kalbalk'+(l.ontvangen?' ok':'')+'" style="border-left-color:'+levKleur(n)+'" title="'+esc(n+' · '+l.materiaal+(l.afdeling_tekst?' · '+l.afdeling_tekst:''))+'">'+esc(n)+' · '+esc(l.materiaal)+(l.ontvangen?' ✓':'')+'</div>'; }).join('')
         +(dagLevs.length>3?'<div class="stil" style="font-size:10px;margin-top:2px">+'+(dagLevs.length-3)+' meer</div>':'')
@@ -1868,12 +1868,12 @@ function rVoortgang(app){
       if(a.klaar_ts&&a.klaar_ts.slice(0,10)===vandaag) klaarActs.push({afd,a});
   }
   const klaarTaken=(S.data.taken||[]).filter(t=>t.klaar_ts&&t.klaar_ts.slice(0,10)===vandaag);
-  const rij=(naam,m,dot)=>{
+  const rij=(naam,m,dot,extra)=>{
     const pct=m.totaal?Math.round(100*m.klaar/m.totaal):0;
     return '<div class="regel">'+dot
       +'<span style="flex:1;min-width:110px">'+esc(naam)+'<br><span class="stil">'+m.klaar+' klaar · '+m.bezig+' bezig · '+m.todo+' te doen'
       +(m.achter?' · <span class="deadline-oud">'+m.achter+' achter ⚠</span>':'')+'</span></span>'
-      +'<div class="balk"><div style="width:'+pct+'%"></div></div><span class="stil" style="min-width:34px;text-align:right">'+pct+'%</span></div>';
+      +'<div class="balk"><div style="width:'+pct+'%"></div></div><span class="stil" style="min-width:34px;text-align:right">'+pct+'%</span>'+(extra||'')+'</div>';
   };
   let h='<div class="kaart"><h2>🎉 Vandaag afgerond</h2>';
   if(!klaarActs.length&&!klaarTaken.length) h+='<div class="leeg">Nog niets vandaag afgerond.</div>';
@@ -1889,7 +1889,8 @@ function rVoortgang(app){
   const openTaken=(S.data.taken||[]).filter(t=>t.status!=='klaar');
   h+='<div class="kaart"><h2>🏢 Per bedrijf</h2>';
   for(const naam of Object.keys(perBedrijf).sort()){
-    h+=rij(naam,perBedrijf[naam],'<i class="ldot" style="background:'+levKleur(naam)+'"></i>');
+    h+=rij(naam,perBedrijf[naam],'<i class="ldot" style="background:'+levKleur(naam)+'"></i>',
+      '<button class="pijl" data-deel="'+esc(naam)+'" title="planning van dit bedrijf delen met de voorman">📤</button>');
     const nt=openTaken.filter(t=>t.bedrijf_id&&bedrijfNaam(t.bedrijf_id)===naam).length;
     if(nt) h+='<div class="stil" style="margin:-2px 0 6px 18px">✅ '+nt+' open taak'+(nt>1?'en':'')+'</div>';
   }
@@ -1899,8 +1900,175 @@ function rVoortgang(app){
     const nt=openTaken.filter(t=>t.bedrijf_id&&bedrijfNaam(t.bedrijf_id)===naam).length;
     h+='<div class="regel"><i class="ldot" style="background:'+levKleur(naam)+'"></i><span style="flex:1">'+esc(naam)+'</span><span class="stil">✅ '+nt+' open taak'+(nt>1?'en':'')+'</span></div>';
   }
-  h+='<div class="stil" style="margin-top:6px">Telling over alle actieve afdelingen; "achter" = geplande einddatum verstreken maar nog niet klaar.</div></div>';
+  h+='<div class="stil" style="margin-top:6px">Telling over alle actieve afdelingen; "achter" = geplande einddatum verstreken maar nog niet klaar. Tik 📤 bij een bedrijf om de planning te delen met de voorman.</div></div>';
   app.innerHTML=h;
+  app.querySelectorAll('button[data-deel]').forEach(b=>b.onclick=()=>deelRapport(b.dataset.deel));
+}
+
+/* ---- Rapport delen per bedrijf ---- */
+function rapportData(bedrijf, van, tot){
+  const afdelingen=[];
+  for(const loc of S.data.locaties.slice().sort((a,b)=>a.sort-b.sort)){
+    for(const blok of S.data.blokken.filter(b=>b.locatie_id===loc.id).sort((a,b)=>a.sort-b.sort).concat([null])){
+      for(const afd of S.data.afdelingen.filter(x=>x.locatie_id===loc.id&&x.actief&&(blok?x.blok_id===blok.id:!x.blok_id)).sort((a,b)=>a.sort-b.sort)){
+        const acts=[];
+        for(const r of planAfdeling(afd)){
+          if(r.a.status==='nvt'||!r.start||!r.eind) continue;
+          const bv=bedrijfVan(afd,r.a);
+          if(!bv||bv.naam!==bedrijf) continue;
+          if(r.start>tot||r.eind<van) continue;
+          acts.push(r);
+        }
+        if(acts.length) afdelingen.push({afd:afd,acts:acts});
+      }
+    }
+  }
+  const levs=S.data.leveringen.filter(l=>l.datum&&levBedrijfNaam(l)===bedrijf&&pd(l.datum)>=van&&pd(l.datum)<=tot)
+    .sort((a,b)=>String(a.datum).localeCompare(String(b.datum)));
+  return {afdelingen:afdelingen, leveringen:levs};
+}
+function rapportTekst(bedrijf, van, tot, data){
+  const iwA=isoWeek(van), iwB=isoWeek(tot);
+  let t='🌱 Planning Kwekerij Baas — '+bedrijf+NL
+    +'Periode: wk '+iwA.week+' t/m wk '+iwB.week+' ('+fmt(van)+' t/m '+fmt(tot)+')'+NL+NL;
+  if(!data.afdelingen.length) t+='Geen geplande activiteiten in deze periode.'+NL;
+  for(const d of data.afdelingen){
+    t+=afdNaam(d.afd)+NL;
+    for(const r of d.acts){
+      t+='• '+r.a.naam+': '+fmt(r.start)+' t/m '+fmt(r.eind)+' ('+r.a.duur+' werkdagen'
+        +(r.a.status==='klaar'?', afgerond':(r.a.status==='bezig'?', mee bezig':''))+')'+NL;
+    }
+    t+=NL;
+  }
+  if(data.leveringen.length){
+    t+='Leveringen:'+NL;
+    for(const l of data.leveringen) t+='• '+fmt(pd(l.datum))+': '+l.materiaal+(l.afdeling_tekst?' — '+l.afdeling_tekst:'')+(l.omschrijving?' ('+l.omschrijving+')':'')+NL;
+    t+=NL;
+  }
+  t+='Zaterdag is een gewone werkdag; zondag alleen als die apart is afgesproken.';
+  return t;
+}
+function rapportCanvas(bedrijf, van, tot, data){
+  const dagen=Math.round((tot-van)/86400000)+1;
+  const rijenLijst=[];
+  for(const d of data.afdelingen){
+    rijenLijst.push({type:'kop',tekst:afdNaam(d.afd)});
+    for(const r of d.acts) rijenLijst.push({type:'act',r:r,afd:d.afd});
+  }
+  const labelB=250, dagB=Math.max(14,Math.min(30,Math.round(820/dagen)));
+  const W=labelB+dagen*dagB+20, kopH=64, rijH=30, H=kopH+rijenLijst.length*rijH+46;
+  const c=document.createElement('canvas');
+  c.width=W*2; c.height=H*2;
+  const x=c.getContext('2d');
+  x.scale(2,2);
+  x.fillStyle='#ffffff'; x.fillRect(0,0,W,H);
+  x.fillStyle='#2d6a4f'; x.fillRect(0,0,W,34);
+  x.fillStyle='#ffffff'; x.font='bold 15px sans-serif';
+  const iwA=isoWeek(van), iwB=isoWeek(tot);
+  x.fillText('🌱 Planning Kwekerij Baas — '+bedrijf+'  ·  wk '+iwA.week+' t/m wk '+iwB.week,12,22);
+  x.font='10px sans-serif';
+  for(let i=0;i<dagen;i++){
+    const d=new Date(van); d.setUTCDate(d.getUTCDate()+i);
+    const px=labelB+i*dagB;
+    if(d.getUTCDay()===0){ x.fillStyle='#f0f0f0'; x.fillRect(px,kopH,dagB,H-kopH-40); }
+    if(d.getUTCDay()===1){
+      x.fillStyle='#2d6a4f'; x.font='bold 11px sans-serif';
+      x.fillText('wk '+isoWeek(d).week,px+2,kopH-18);
+      x.strokeStyle='#c9d4ce'; x.beginPath(); x.moveTo(px,kopH-28); x.lineTo(px,H-40); x.stroke();
+    }
+    x.fillStyle='#6c757d'; x.font='9px sans-serif';
+    x.fillText(['zo','ma','di','wo','do','vr','za'][d.getUTCDay()]+' '+d.getUTCDate(),px+2,kopH-5);
+  }
+  let y=kopH;
+  for(const rij of rijenLijst){
+    if(rij.type==='kop'){
+      x.fillStyle='#eef4f1'; x.fillRect(0,y,W,rijH);
+      x.fillStyle='#2d6a4f'; x.font='bold 12px sans-serif';
+      x.fillText(rij.tekst,10,y+19);
+    } else {
+      const r=rij.r;
+      x.fillStyle='#1b2a24'; x.font='11px sans-serif';
+      let naam=r.a.naam; if(naam.length>34) naam=naam.slice(0,32)+'…';
+      x.fillText(naam,18,y+19);
+      const bs=r.start<van?van:r.start, be=r.eind>tot?tot:r.eind;
+      const i0=Math.round((bs-van)/86400000), i1=Math.round((be-van)/86400000);
+      x.fillStyle=kleur(r.a.naam);
+      x.globalAlpha=r.a.status==='klaar'?0.45:1;
+      x.fillRect(labelB+i0*dagB+1,y+7,(i1-i0+1)*dagB-2,16);
+      x.globalAlpha=1;
+    }
+    x.strokeStyle='#e3e7e5'; x.beginPath(); x.moveTo(0,y+rijH); x.lineTo(W,y+rijH); x.stroke();
+    y+=rijH;
+  }
+  const nu=pd(vandaagISO());
+  if(nu>=van&&nu<=tot){
+    const i=Math.round((nu-van)/86400000);
+    x.strokeStyle='#c1442e'; x.lineWidth=2;
+    x.beginPath(); x.moveTo(labelB+i*dagB,kopH-28); x.lineTo(labelB+i*dagB,H-40); x.stroke();
+    x.lineWidth=1;
+  }
+  x.fillStyle='#6c757d'; x.font='10px sans-serif';
+  x.fillText('Vervaagd = afgerond · grijs = zondag (alleen werken als apart afgesproken) · rode lijn = vandaag',10,H-16);
+  return c;
+}
+async function deelAlsTekst(t){
+  if(navigator.share){ try{ await navigator.share({text:t}); return; }catch(e){ if(e&&e.name==='AbortError') return; } }
+  try{ await navigator.clipboard.writeText(t); toast('Tekst gekopieerd — plak hem in WhatsApp of een mail'); }
+  catch(e){ toast('Delen niet gelukt op dit apparaat'); }
+}
+function deelAlsPng(canvas, bestandsnaam){
+  canvas.toBlob(async function(b){
+    if(!b){ toast('Afbeelding maken mislukt'); return; }
+    const f=new File([b],bestandsnaam,{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){
+      try{ await navigator.share({files:[f]}); return; }catch(e){ if(e&&e.name==='AbortError') return; }
+    }
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(b); a.download=bestandsnaam; a.click();
+    toast('Afbeelding opgeslagen bij je downloads');
+  },'image/png');
+}
+function deelRapport(bedrijf){
+  const sh=document.getElementById('sheet');
+  const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
+  const nuMa=maandagVan(pd(vandaagISO()));
+  let van=new Date(nuMa);
+  let tot=new Date(nuMa); tot.setUTCDate(tot.getUTCDate()+20);
+  const maak=()=>{
+    van=maandagVan(van);
+    tot=new Date(maandagVan(tot)); tot.setUTCDate(tot.getUTCDate()+6);
+    if(tot<van){ tot=new Date(van); tot.setUTCDate(tot.getUTCDate()+6); }
+    if((tot-van)/86400000>84){ tot=new Date(van); tot.setUTCDate(tot.getUTCDate()+83); toast('Maximaal 12 weken per rapport'); }
+    const data=rapportData(bedrijf, van, tot);
+    const iwA=isoWeek(van), iwB=isoWeek(tot);
+    let prev='';
+    if(!data.afdelingen.length) prev='<div class="leeg">Geen geplande activiteiten voor '+esc(bedrijf)+' in deze periode.</div>';
+    for(const d of data.afdelingen){
+      prev+='<div style="font-weight:600;font-size:13px;margin-top:4px">'+esc(afdNaam(d.afd))+'</div>';
+      for(const r of d.acts) prev+='<div class="stil">• '+esc(r.a.naam)+': '+fmt(r.start)+' t/m '+fmt(r.eind)+' ('+r.a.duur+' wd)</div>';
+    }
+    if(data.leveringen.length) prev+='<div style="font-weight:600;font-size:13px;margin-top:4px">📦 '+data.leveringen.length+' levering(en) in deze periode</div>';
+    sh.innerHTML='<div class="sheetkaart"><div class="sheettitel">📤 Planning delen — '+bedrijfDot(bedrijf)+esc(bedrijf)+'</div>'
+      +'<div class="sheetrij"><label>Van week</label><input type="date" id="rp-van" value="'+iso(van)+'"><span class="stil"><b>wk '+iwA.week+'</b></span>'
+      +'<label>t/m week</label><input type="date" id="rp-tot" value="'+iso(tot)+'"><span class="stil"><b>wk '+iwB.week+'</b></span></div>'
+      +'<div class="stil">Kies een dag in de gewenste start- en eindweek; het rapport pakt altijd hele weken (ma t/m zo).</div>'
+      +'<div style="max-height:32vh;overflow:auto;border:1px solid var(--lijn);border-radius:8px;padding:8px">'+prev+'</div>'
+      +'<button class="knop breed" id="rp-img">🖼 Delen als afbeelding</button>'
+      +'<button class="knop licht breed" id="rp-tekst">💬 Delen als tekst (WhatsApp/mail)</button>'
+      +'<button class="knop licht breed" id="rp-annuleer">Sluiten</button></div>';
+    sh.style.display='flex';
+    sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+    document.getElementById('rp-annuleer').onclick=dichtFn;
+    document.getElementById('rp-van').onchange=e=>{ if(e.target.value){ van=pd(e.target.value); maak(); } };
+    document.getElementById('rp-tot').onchange=e=>{ if(e.target.value){ tot=pd(e.target.value); maak(); } };
+    document.getElementById('rp-tekst').onclick=()=>deelAlsTekst(rapportTekst(bedrijf, van, tot, data));
+    document.getElementById('rp-img').onclick=()=>{
+      if(!data.afdelingen.length){ toast('Niets te delen in deze periode'); return; }
+      const naam='planning-'+bedrijf.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-wk'+iwA.week+'-'+iwB.week+'.png';
+      deelAlsPng(rapportCanvas(bedrijf, van, tot, data), naam);
+    };
+  };
+  maak();
 }
 
 /* ---- Inbox ---- */
