@@ -1007,7 +1007,7 @@ function rAfdDetail(app){
     +'<div class="dagnav"><button id="ag-vorig">‹</button><div class="datum">'+fmt(dagen[0])+' t/m '+fmt(dagen[13])+' <span class="stil">· wk '+isoWeek(dagen[0]).week+'–'+isoWeek(dagen[13]).week+'</span></div><button id="ag-volgend">›</button><button id="ag-nu" style="font-size:12px">vandaag</button></div>';
   h+='<div id="wg"><table><tr class="kop"><th class="naam">Activiteit</th>';
   for(const d of dagen){ const dIso=iso(d);
-    h+='<th class="'+(dIso===vandaag?'wknu':'')+'">'+(d.getUTCDay()===1?'<span style="color:var(--groen)">wk '+isoWeek(d).week+'</span><br>':'')+DG[(d.getUTCDay()+6)%7]+'<br><span style="font-weight:400">'+d.getUTCDate()+'/'+(d.getUTCMonth()+1)+'</span></th>'; }
+    h+='<th class="'+(dIso===vandaag?'wknu':'')+'">'+DG[(d.getUTCDay()+6)%7]+'<br>'+(d.getUTCDay()===1?'<span style="font-weight:400;color:var(--groen)">wk '+isoWeek(d).week+' · </span>':'')+'<span style="font-weight:400">'+d.getUTCDate()+'/'+(d.getUTCMonth()+1)+'</span></th>'; }
   h+='</tr>';
   const afdLevs=S.data.leveringen.filter(l=>l.datum&&levHoortBij(l,afd));
   if(afdLevs.length){
