@@ -1519,26 +1519,23 @@ function kopieerDuren(afdId){
   const doel=S.data.activiteiten.filter(z=>z.afdeling_id===afdId);
   let bronId=null;
   const matchTelling=bronAfd=>{
-    const acts=S.data.activiteiten.filter(z=>z.afdeling_id===bronAfd.id&&z.duur!=null);
+    const acts=S.data.activiteiten.filter(z=>z.afdeling_id===bronAfd.id);
     return doel.filter(d=>acts.some(z=>z.naam===d.naam)).length;
   };
   const maak=()=>{
     let x='<div class="sheetkaart"><div class="sheettitel">&#10697; Opzet overnemen — '+esc(afdNaam(doelAfd))+'</div>';
     if(!bronId){
-      x+='<div class="stil">Kies de afdeling waarvan je de opzet wilt overnemen: volgorde, werkdagen &eacute;n bedrijven per activiteit gaan mee (het getal = hoeveel activiteiten matchen op naam). Vrije dagen en statussen gaan niet mee.</div>';
-      let opties=0;
+      x+='<div class="stil">Kies een afdeling van welke locatie dan ook. Volgorde en bedrijven per activiteit gaan altijd mee; werkdagen alleen waar ze in de bron zijn ingevuld. Vrije dagen en statussen gaan niet mee.</div>';
       for(const loc of S.data.locaties.slice().sort((a,b)=>a.sort-b.sort)){
         let rijen='';
         for(const bron of S.data.afdelingen.filter(z=>z.locatie_id===loc.id&&z.id!==afdId).sort((a,b)=>a.sort-b.sort)){
-          const n=matchTelling(bron);
-          if(!n) continue;
-          opties++;
-          rijen+='<button data-kd="'+bron.id+'">'+esc(isNaN(+bron.code)?bron.code:('afd '+bron.code))+' <span class="stil">('+n+')</span></button>';
+          const metDuur=S.data.activiteiten.filter(z=>z.afdeling_id===bron.id&&z.duur!=null).length;
+          rijen+='<button data-kd="'+bron.id+'">'+esc(isNaN(+bron.code)?bron.code:('afd '+bron.code))+(metDuur?' <span class="stil">('+metDuur+' wd)</span>':'')+'</button>';
         }
         if(rijen) x+='<div style="font-weight:600;font-size:13px;margin-top:4px">'+esc(loc.code)+'</div><div class="keuze">'+rijen+'</div>';
       }
-      if(!opties) x+='<div class="leeg">Geen andere afdeling heeft al werkdagen ingevuld.</div>';
-      x+='<button class="knop licht breed" id="kd-sluit">Annuleren</button></div>';
+      x+='<div class="stil">Het getal = hoeveel activiteiten daar al werkdagen hebben.</div>'
+        +'<button class="knop licht breed" id="kd-sluit">Annuleren</button></div>';
     } else {
       const bronAfd=S.data.afdelingen.find(z=>z.id===bronId);
       x+='<div class="stil">Opzet van <b>'+esc(afdNaam(bronAfd))+'</b> ('+matchTelling(bronAfd)+' activiteiten) komt naar deze afdeling. Kies de startdatum — de hele reeks rekent vanaf daar, met dezelfde aantallen werkdagen.</div>'
@@ -1563,13 +1560,15 @@ function kopieerDuren(afdId){
         const bronActs=S.data.activiteiten.filter(z=>z.afdeling_id===bronAfd.id);
         let n=0;
         for(const d of doel){
-          const b=bronActs.find(z=>z.naam===d.naam&&z.duur!=null);
+          const b=bronActs.find(z=>z.naam===d.naam);
           if(!b) continue;
           const bv=bedrijfVan(bronAfd,b);
           let bid=b.bedrijf_id||null;
           if(!bid&&bv){ const bo=(S.data.bedrijven||[]).find(z=>z.naam===bv.naam); bid=bo?bo.id:null; }
           if(bid){ const t=(S.data.toewijzingen||[]).find(z=>z.locatie_id===doelAfd.locatie_id&&z.activiteit_naam===d.naam); if(t&&t.bedrijf_id===bid) bid=null; }
-          await api({action:'act_update',id:d.id,fields:{duur:b.duur,bedrijf_id:bid}});
+          const velden={bedrijf_id:bid};
+          if(b.duur!=null) velden.duur=b.duur;
+          await api({action:'act_update',id:d.id,fields:velden});
           n++;
         }
         const orde=doel.slice().sort((p,q)=>{
