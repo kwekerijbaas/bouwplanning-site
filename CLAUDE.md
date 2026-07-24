@@ -20,7 +20,7 @@ Planningsapp voor Jarno (kasrenovatie na hagelschade 27/28-06-2026). Gebruikers:
 2. **Deployen kan ALLEEN via `bouwplanning/app-broncode/deploy.ps1`** met `-Bericht` en `-Marker` (een string die aantoonbaar in de nieuwe versie zit). Het script kopieert naar het Jarno-bestand + `index.html` + `planning.html`, pusht en pollt de ROOT-url. Nooit handmatig losse bestanden kopiëren — dat veroorzaakte eerder wekenlange versie-drift.
 3. **Verifieer altijd op https://baaskwekerij.nl/ (de root)**, nooit alleen op `/planning.html` of localhost.
 4. **Na elke API-deploy `smoketest.ps1` draaien** (12 checks tegen productie; ruimt zichzelf op).
-5. **Testen op productie**: alleen op de EW4-sloopafdelingen (afd 6/7 e.d.), álles exact terugzetten, en logboek opschonen (`DELETE FROM rp_logboek WHERE wie IN ('Test','Smoketest')`). Blijf van EW2/EW5/3T36/3T38 af — daar plannen Jarno en Dieter live. Lokaal testen met cache-buster (`?v=...`).
+5. **Testen op productie**: ALLE bestaande afdelingen zijn live in gebruik — ook EW4 (sloop/herbouw wordt daar gepland). Test uitsluitend met een zelf aangemaakte wegwerp-afdeling (via `afd_add`, bv. code "TEST" in een tijdelijke groep), controleer vóór elke mutatie de actuele inhoud (het logboek liegt niet), en ruim na afloop álles op incl. logboek (`DELETE FROM rp_logboek WHERE wie IN ('Test','Smoketest')`). Lokaal testen met cache-buster (`?v=...`).
 6. **Geen geheimen in de publieke repo** (`bouwplanning-site` bevat alléén HTML zonder code/keys). Toegangscode zit server-side in `index.ts` (`TOEGANGSCODE`), client stuurt hem via de `X-Code`-header. Login-link: `https://baaskwekerij.nl/#<code>` (Jarno) of `#<code>/Dieter`.
 7. **`body.code` is gereserveerd** voor de (legacy) toegangscode-check — nooit een actieveld "code" introduceren (locaties gebruiken daarom `loccode`).
 8. **Edge function deployen** via de Supabase MCP-tool `deploy_edge_function` (verify_jwt=false) met de VOLLEDIGE inhoud van `index.ts`; wijzigingen eerst in het bronbestand, dan deployen — houd beide identiek.
@@ -51,3 +51,7 @@ Planningsapp voor Jarno (kasrenovatie na hagelschade 27/28-06-2026). Gebruikers:
 Grote functie-vervangingen in app.html: python-splice met unieke tekstankers (via scratchpad), niet met fragiele Edit-matches. Commits eindigen met de Claude-co-author-regel.
 
 Dit bestand zelf: de versie in de projectroot (`Hagelschade 2026/CLAUDE.md`) is leidend; bij elke wijziging ook de kopie in `~/git/bouwplanning-site/CLAUDE.md` bijwerken en pushen.
+
+## Verzekeringsdossier — aparte, PRIVÉ conventies
+
+Deze map wordt óók gebruikt voor het **verzekeringsdossier hagelschade** (facturen, voorschotten, budgetten). De conventies daarvoor staan in **`CLAUDE.local.md`**. Dat bestand bevat vertrouwelijke schadegegevens en is **privé**: neem het **niet** mee bij het spiegelen/pushen naar de publieke `bouwplanning-site`-repo (spiegel uitsluitend deze `CLAUDE.md`, niet `CLAUDE.local.md`).
