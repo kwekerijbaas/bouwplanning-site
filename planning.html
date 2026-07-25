@@ -331,8 +331,12 @@ function beheerRijen(type, items){
 }
 function rBeheer(app){
   const dicht=dichtSet();
-  let h='<div class="kaart"><h2>📍 Locaties en groepen</h2>'
-    +'<div class="stil" style="margin-bottom:6px">Een locatie bevat groepen, een groep bevat afdelingen. Hernoemen werkt overal door. Een afdeling verplaats je in het afdelingsscherm zelf.</div>';
+  const dLoc=dicht.has('bh-loc'), dAct=dicht.has('bh-act'), dBedr=dicht.has('bh-bedr');
+  let h='<div class="kaart"><h2 class="klap" data-klap="bh-loc">'+(dLoc?'▸ ':'▾ ')+'📍 Locaties en groepen'
+    +(dLoc?' <span class="stil">('+S.data.locaties.length+' locaties · '+S.data.blokken.length+' groepen)</span>':'')+'</h2>';
+  if(dLoc) h+='</div>';
+  else {
+  h+='<div class="stil" style="margin-bottom:6px">Een locatie bevat groepen, een groep bevat afdelingen. Hernoemen werkt overal door. Een afdeling verplaats je in het afdelingsscherm zelf.</div>';
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     const nAfd=S.data.afdelingen.filter(a=>a.locatie_id===loc.id).length;
     if(bhBewerk&&bhBewerk.type==='loc'&&bhBewerk.id===loc.id){
@@ -356,14 +360,17 @@ function rBeheer(app){
     h+='<div class="regel" style="padding-left:22px"><input type="text" data-nieuwblok="'+loc.id+'" placeholder="nieuwe groep in '+esc(loc.code)+'…" style="flex:1"><button class="knop klein" data-nieuwblokok="'+loc.id+'">+ groep</button></div>';
   }
   h+='<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input type="text" id="bh-nieuw-loccode" placeholder="code, bv. 3T40" style="width:110px"><input type="text" id="bh-nieuw-locnaam" placeholder="omschrijving" style="flex:1;min-width:120px"><button class="knop klein" id="bh-nieuw-loc-ok">+ locatie</button></div></div>';
-  h+='<div class="kaart"><h2>🎨 Activiteiten</h2>'
-    +'<div class="stil" style="margin-bottom:6px">Hernoemen werkt overal door. Verwijderen kan alleen als een activiteit nergens meer in een planning staat.</div>'
-    +beheerRijen('act', actCats())
-    +'<div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="bh-nieuw-act" placeholder="nieuwe activiteit…" style="flex:1"><button class="knop klein" id="bh-nieuw-act-ok">+ toevoegen</button></div></div>';
-  h+='<div class="kaart"><h2>🏢 Bedrijven</h2>'
-    +'<div class="stil" style="margin-bottom:6px">&Eacute;&eacute;n lijst voor werk &eacute;n leveringen; elk bedrijf heeft overal dezelfde kleur.</div>'
-    +beheerRijen('bedrijf', S.data.bedrijven||[])
-    +'<div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="bh-nieuw-bedr" placeholder="nieuw bedrijf…" style="flex:1"><button class="knop klein" id="bh-nieuw-bedr-ok">+ toevoegen</button></div></div>';
+  }
+  h+='<div class="kaart"><h2 class="klap" data-klap="bh-act">'+(dAct?'▸ ':'▾ ')+'🎨 Activiteiten'
+    +(dAct?' <span class="stil">('+actCats().length+')</span>':'')+'</h2>'
+    +(dAct?'':'<div class="stil" style="margin-bottom:6px">Hernoemen werkt overal door. Verwijderen kan alleen als een activiteit nergens meer in een planning staat.</div>'
+      +beheerRijen('act', actCats())
+      +'<div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="bh-nieuw-act" placeholder="nieuwe activiteit…" style="flex:1"><button class="knop klein" id="bh-nieuw-act-ok">+ toevoegen</button></div>')+'</div>';
+  h+='<div class="kaart"><h2 class="klap" data-klap="bh-bedr">'+(dBedr?'▸ ':'▾ ')+'🏢 Bedrijven'
+    +(dBedr?' <span class="stil">('+(S.data.bedrijven||[]).length+')</span>':'')+'</h2>'
+    +(dBedr?'':'<div class="stil" style="margin-bottom:6px">&Eacute;&eacute;n lijst voor werk &eacute;n leveringen; elk bedrijf heeft overal dezelfde kleur.</div>'
+      +beheerRijen('bedrijf', S.data.bedrijven||[])
+      +'<div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="bh-nieuw-bedr" placeholder="nieuw bedrijf…" style="flex:1"><button class="knop klein" id="bh-nieuw-bedr-ok">+ toevoegen</button></div>')+'</div>';
   for(const loc of S.data.locaties.sort((a,b)=>a.sort-b.sort)){
     const k='bt-'+loc.id; const d=dicht.has(k);
     h+='<div class="kaart"><h2 class="klap" data-klap="'+k+'">'+(d?'▸ ':'▾ ')+'🔗 Vaste bedrijven — '+esc(loc.code)+'</h2>';
@@ -430,18 +437,19 @@ function rBeheer(app){
     const v=inp.value.trim();
     if(v) doe({action:'blok_add',locatie_id:locId,naam:v}, 'Groep toegevoegd: '+v);
   });
-  document.getElementById('bh-nieuw-loc-ok').onclick=()=>{
+  const nL=document.getElementById('bh-nieuw-loc-ok');
+  if(nL) nL.onclick=()=>{
     const c=document.getElementById('bh-nieuw-loccode').value.trim();
     const n=document.getElementById('bh-nieuw-locnaam').value.trim();
     if(c) doe({action:'locatie_add',loccode:c,naam:n||c}, 'Locatie toegevoegd: '+c);
   };
   const nA=document.getElementById('bh-nieuw-act-ok');
-  nA.onclick=()=>{
+  if(nA) nA.onclick=()=>{
     const v=document.getElementById('bh-nieuw-act').value.trim();
     if(v) doe({action:'actcat_add',naam:v}, 'Activiteit toegevoegd: '+v);
   };
   const nB=document.getElementById('bh-nieuw-bedr-ok');
-  nB.onclick=()=>{
+  if(nB) nB.onclick=()=>{
     const v=document.getElementById('bh-nieuw-bedr').value.trim();
     if(v) doe({action:'bedrijf_add',naam:v}, 'Bedrijf toegevoegd: '+v);
   };
