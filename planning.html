@@ -178,7 +178,7 @@ const MAT_KLEUR = {glas:'#1d70b8', schermdoek:'#9b5de5', gronddoek:'#52b788', at
 const LEV_PALET=['#1d70b8','#e07a5f','#9b5de5','#2d6a4f','#f2a541','#c1442e','#52b788','#6a4c93','#bc6c25','#8d99ae'];
 function levKleur(naam){ let n=0; const s=String(naam||''); for(let i=0;i<s.length;i++) n=(n+s.charCodeAt(i)*(i+1))%LEV_PALET.length; return LEV_PALET[n]; }
 const S = { data:null, view:'afdelingen', dag:vandaagISO(), selAfd:null, weekStart:null,
-  levMaand:null, levMat:null, levBedrijf:null, levDag:null, nlBedrijf:null, nlAfdIds:[], ntAfd:null, ntBedrijf:null, weekBlok:null, dagBlok:null, takBedrijf:null, wkStart:null, wkVenster:null, kolBreedte:null, agStart:null, gewijzigd:null, afdTerug:null,
+  levMaand:null, levMat:null, levBedrijf:null, levDag:null, nlBedrijf:null, nlAfdIds:[], ntAfd:null, ntBedrijf:null, weekBlok:null, dagBlok:null, takBedrijf:null, wkStart:null, wkVenster:null, kolBreedte:null, agStart:null, agDagen:null, gewijzigd:null, afdTerug:null,
   code:localStorage.getItem('rp_code')||'', wie:localStorage.getItem('rp_wie')||'' };
 function dichtSet(){ try{ return new Set(JSON.parse(localStorage.getItem('rp_dicht')||'[]')); }catch(e){ return new Set(); } }
 function dichtToggle(key){ const s=dichtSet(); if(s.has(key)) s.delete(key); else s.add(key);
@@ -1010,11 +1010,18 @@ function rAfdDetail(app){
     +'<button class="pijl" id="afd-del" title="afdeling verwijderen (kan alleen als hij helemaal leeg is)">🗑</button></div>';
   h+='</div>';
   if(!S.agStart) S.agStart=iso(maandagVan(pd(vandaag)));
+  if(S.agDagen==null){ const ad=+(localStorage.getItem('rp_agdagen')||14); S.agDagen=(ad>=7&&ad<=98)?ad:14; }
   const agStart=pd(S.agStart);
-  const dagen=[]; for(let i=0;i<14;i++){ const d=new Date(agStart); d.setUTCDate(d.getUTCDate()+i); dagen.push(d); }
+  const dagen=[]; for(let i=0;i<S.agDagen;i++){ const d=new Date(agStart); d.setUTCDate(d.getUTCDate()+i); dagen.push(d); }
+  const laatste=dagen[dagen.length-1];
   const DG=['ma','di','wo','do','vr','za','zo'];
   h+='<div class="kaart"><h2>📅 Agenda per dag</h2>'
-    +'<div class="dagnav"><button id="ag-vorig">‹</button><div class="datum">'+fmt(dagen[0])+' t/m '+fmt(dagen[13])+' <span class="stil">· wk '+isoWeek(dagen[0]).week+'–'+isoWeek(dagen[13]).week+'</span></div><button id="ag-volgend">›</button><button id="ag-nu" style="font-size:12px">vandaag</button></div>';
+    +'<div class="dagnav"><button id="ag-vorig">‹</button><div class="datum">'+fmt(dagen[0])+' t/m '+fmt(laatste)+' <span class="stil">· wk '+isoWeek(dagen[0]).week+'–'+isoWeek(laatste).week+'</span></div><button id="ag-volgend">›</button><button id="ag-nu" style="font-size:12px">vandaag</button></div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="stil">weken in beeld:</label>'
+    +'<button class="stap" id="ag-min" title="een week minder">−</button>'
+    +'<b style="min-width:18px;text-align:center">'+Math.round(S.agDagen/7)+'</b>'
+    +'<button class="stap" id="ag-plus" title="een week meer">+</button>'
+    +'<span class="stil">('+S.agDagen+' dagen)</span></div>';
   h+='<div id="wg"><table><tr class="kop"><th class="naam">Activiteit</th>';
   for(const d of dagen){ const dIso=iso(d);
     h+='<th class="'+(dIso===vandaag?'wknu':'')+'">'+DG[(d.getUTCDay()+6)%7]+'<br>'+(d.getUTCDay()===1?'<span style="font-weight:400;color:var(--groen)">wk '+isoWeek(d).week+' · </span>':'')+'<span style="font-weight:400">'+d.getUTCDate()+'/'+(d.getUTCMonth()+1)+'</span></th>'; }
@@ -1091,8 +1098,11 @@ function rAfdDetail(app){
   document.getElementById('afd-foto').onclick=()=>maakFoto({afdeling_id:afd.id}, 'Foto bij '+afdNaam(afd));
   koppelFotoDel(app);
   document.getElementById('terug').onclick=e=>{e.preventDefault();S.selAfd=null;S.gewijzigd=null;if(terugWeek){S.view='week';}render();};
-  document.getElementById('ag-vorig').onclick=()=>{const d=pd(S.agStart);d.setUTCDate(d.getUTCDate()-14);S.agStart=iso(d);render();};
-  document.getElementById('ag-volgend').onclick=()=>{const d=pd(S.agStart);d.setUTCDate(d.getUTCDate()+14);S.agStart=iso(d);render();};
+  document.getElementById('ag-vorig').onclick=()=>{const d=pd(S.agStart);d.setUTCDate(d.getUTCDate()-S.agDagen);S.agStart=iso(d);render();};
+  document.getElementById('ag-volgend').onclick=()=>{const d=pd(S.agStart);d.setUTCDate(d.getUTCDate()+S.agDagen);S.agStart=iso(d);render();};
+  const zetDagen=n=>{ S.agDagen=Math.min(98,Math.max(7,n)); localStorage.setItem('rp_agdagen',S.agDagen); render(); };
+  document.getElementById('ag-min').onclick=()=>zetDagen(S.agDagen-7);
+  document.getElementById('ag-plus').onclick=()=>zetDagen(S.agDagen+7);
   document.getElementById('ag-nu').onclick=()=>{S.agStart=iso(maandagVan(pd(vandaagISO())));render();};
   let sleepte=false;
   const kolVan=(tr,x)=>{
