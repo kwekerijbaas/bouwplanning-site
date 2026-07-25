@@ -992,6 +992,7 @@ function rAfdDetail(app){
   h+='<div class="kaart"><div class="afdkop">'
     +'<button class="pijl" id="afd-vorig" title="vorige afdeling" '+(vIdx<=0?'disabled style="opacity:.3"':'')+'>‹</button>'
     +'<span class="titel">'+esc(afdNaam(afd))+'</span>'
+    +'<button class="pijl" id="afd-hernoem" title="afdelingsnaam aanpassen">✎</button>'
     +'<button class="pijl" id="afd-volgend" title="volgende afdeling" '+(vIdx>=volgorde.length-1?'disabled style="opacity:.3"':'')+'>›</button>'
     +'<label style="margin-left:auto;font-size:13px"><input type="checkbox" id="afd-actief" '+(afd.actief?'checked':'')+'> actief</label></div>';
   h+='<div class="instelrij"><label>Start</label><input type="date" id="afd-start" value="'+(afd.startdatum?afd.startdatum.slice(0,10):'')+'">'
@@ -1272,6 +1273,27 @@ function rAfdDetail(app){
   };
   document.getElementById('afd-kopieer').onclick=()=>kopieerDuren(afd.id);
   document.getElementById('afd-verplaats').onclick=()=>verplaatsAfdeling(afd.id);
+  document.getElementById('afd-hernoem').onclick=()=>{
+    const sh=document.getElementById('sheet');
+    const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
+    sh.innerHTML='<div class="sheetkaart"><div class="sheettitel">✎ Afdelingsnaam aanpassen — '+esc(afdNaam(afd))+'</div>'
+      +'<div class="stil">De naam (code) wordt overal in de app gebruikt: weekoverzicht, agenda&#39;s, kiezers en rapporten. Cijfers worden getoond als "afd 6"; tekst (bv. "6 nieuw" of "MH5") staat er letterlijk.</div>'
+      +'<div class="sheetrij"><label>Naam</label><input type="text" id="hn-code" value="'+esc(afd.code)+'" style="flex:1"></div>'
+      +'<button class="knop breed" id="hn-ok">Opslaan</button>'
+      +'<button class="knop licht breed" id="hn-annuleer">Annuleren</button></div>';
+    sh.style.display='flex';
+    sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
+    document.getElementById('hn-annuleer').onclick=dichtFn;
+    const veld=document.getElementById('hn-code');
+    veld.focus(); veld.select();
+    document.getElementById('hn-ok').onclick=()=>{
+      const v=veld.value.trim();
+      if(!v){ toast('Naam mag niet leeg zijn'); return; }
+      if(v===afd.code){ dichtFn(); return; }
+      dichtFn();
+      doe({action:'afd_update',id:afd.id,fields:{code:v}}, 'Afdeling '+afdNaam(afd)+' hernoemd naar "'+v+'"');
+    };
+  };
   const adel=document.getElementById('afd-del');
   adel.onclick=async()=>{
     if(adel.dataset.zeker!=='1'){ adel.dataset.zeker='1'; toast('Nogmaals tikken om deze afdeling definitief te verwijderen (kan alleen als hij leeg is)'); return; }
