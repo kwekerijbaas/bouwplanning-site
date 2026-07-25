@@ -91,6 +91,7 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .actrij .nm .naam{font-size:14px}
 .actrij .nm .datums{font-size:11px;color:var(--grijs)}
 .pijl{width:30px;height:30px;border-radius:7px;border:1px solid var(--lijn);background:#fff;font-size:13px;color:var(--grijs)}
+.pijl.aanuit{background:var(--groen);border-color:var(--groen);color:#fff}
 .terug{color:var(--groen);font-weight:600;margin-bottom:8px;display:inline-block;font-size:14px}
 .afdkop{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .afdkop .titel{font-size:18px;font-weight:700}
@@ -1071,6 +1072,7 @@ function rAfdDetail(app){
       +(a.notitie?' · &#8618; '+esc(a.notitie):'')+'</div></div>'
       +'<span class="stepper"><button class="stap" data-min="'+a.id+'">−</button><input type="number" min="0" max="99" data-duur="'+a.id+'" value="'+(a.duur==null?'':a.duur)+'" placeholder="dgn" title="werkdagen"><button class="stap" data-plus="'+a.id+'">+</button></span>'
       +statusKnop(a)
+      +'<button class="pijl'+(a.status==='nvt'?' aanuit':'')+'" data-nvt="'+a.id+'" title="'+(a.status==='nvt'?'weer actief maken':'niet van toepassing voor deze afdeling')+'">⊘</button>'
       +'<button class="pijl" data-op="meer" data-id="'+a.id+'">›</button>'
       +'</div>';
   });
@@ -1226,6 +1228,12 @@ function rAfdDetail(app){
     doe(Object.assign({action:'act_update',id:a.id,fields:{duur:v}},actBasis(a)), afdNaam(afd)+' — "'+a.naam+'" duur → '+(v==null?'leeg':v+' wd'));
   });
   koppelStatus(app);
+  app.querySelectorAll('button[data-nvt]').forEach(b=>b.onclick=()=>{
+    const a=S.data.activiteiten.find(x=>x.id===+b.dataset.nvt);
+    const nieuw=a.status==='nvt'?'todo':'nvt';
+    doe(Object.assign({action:'act_update',id:a.id,fields:{status:nieuw}},actBasis(a)),
+      afdNaam(afd)+' — "'+a.naam+'" '+(nieuw==='nvt'?'op n.v.t. gezet':'weer actief'));
+  });
   app.querySelectorAll('button[data-op]').forEach(b=>b.onclick=()=>{
     const id=+b.dataset.id, op=b.dataset.op;
     const acts=S.data.activiteiten.filter(x=>x.afdeling_id===afd.id).sort((x,y)=>x.sort-y.sort);
