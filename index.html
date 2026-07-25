@@ -177,7 +177,7 @@ const NL = String.fromCharCode(10);
 const MAT_KLEUR = {glas:'#1d70b8', schermdoek:'#9b5de5', gronddoek:'#52b788', atlasdraad:'#f2a541', overig:'#6c757d'};
 const LEV_PALET=['#1d70b8','#e07a5f','#9b5de5','#2d6a4f','#f2a541','#c1442e','#52b788','#6a4c93','#bc6c25','#8d99ae'];
 function levKleur(naam){ let n=0; const s=String(naam||''); for(let i=0;i<s.length;i++) n=(n+s.charCodeAt(i)*(i+1))%LEV_PALET.length; return LEV_PALET[n]; }
-const S = { data:null, view:'week', dag:vandaagISO(), selAfd:null, weekStart:null,
+const S = { data:null, view:'afdelingen', dag:vandaagISO(), selAfd:null, weekStart:null,
   levMaand:null, levMat:null, levBedrijf:null, levDag:null, nlBedrijf:null, nlAfdIds:[], ntAfd:null, ntBedrijf:null, weekBlok:null, dagBlok:null, takBedrijf:null, wkStart:null, wkVenster:null, kolBreedte:null, agStart:null, gewijzigd:null, afdTerug:null,
   code:localStorage.getItem('rp_code')||'', wie:localStorage.getItem('rp_wie')||'' };
 function dichtSet(){ try{ return new Set(JSON.parse(localStorage.getItem('rp_dicht')||'[]')); }catch(e){ return new Set(); } }
