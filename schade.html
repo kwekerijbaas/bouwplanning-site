@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d4e8f">
+<title>Schade-inventarisatie Kwekerij Baas</title>
+<style>
+:root{
+  --groen:#1d4e8f; --groen-licht:#4d8fd1; --bg:#eef2f7; --kaart:#ffffff;
+  --tekst:#1b2a24; --grijs:#6c757d; --lijn:#e3e7e5; --rood:#c1442e; --oranje:#f2a541; --blauw:#1d70b8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--tekst);font-size:15px;-webkit-tap-highlight-color:transparent}
+button{font:inherit;cursor:pointer;border:none;background:none}
+input,select,textarea{font:inherit}
+#topbar{position:sticky;top:0;z-index:30;background:var(--groen);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px}
+#topbar h1{font-size:16px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#topbar .wie{font-size:12px;opacity:.85}
+#tabs{position:sticky;top:44px;z-index:29;display:flex;background:var(--kaart);border-bottom:1px solid var(--lijn);overflow-x:auto}
+#tabs button{flex:1;min-width:70px;padding:10px 4px;font-size:13px;color:var(--grijs);border-bottom:3px solid transparent;white-space:nowrap}
+#tabs button.actief{color:var(--groen);border-bottom-color:var(--groen);font-weight:600}
+main{padding:12px;max-width:1100px;margin:0 auto;padding-bottom:50px}
+.kaart{background:var(--kaart);border:1px solid var(--lijn);border-radius:10px;padding:12px;margin-bottom:10px}
+.kaart h2{font-size:14px;margin-bottom:8px;color:var(--groen)}
+.stil{color:var(--grijs);font-size:12px}
+.knop{background:var(--groen);color:#fff;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:600}
+.knop.licht{background:#e8f0ec;color:var(--groen)}
+.knop.klein{padding:5px 10px;font-size:12px}
+.chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;color:#fff;white-space:nowrap}
+.chip.schade{background:var(--rood)}
+.chip.gewas{background:var(--oranje)}
+.chip.steun{background:#98a2a0}
+input[type=text],input[type=number],input[type=date],select,textarea{border:1px solid var(--lijn);border-radius:7px;padding:7px 8px;background:#fff;width:100%}
+textarea{resize:vertical;min-height:50px}
+label.veld{display:block;font-size:12px;color:var(--grijs);margin:8px 0 3px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px}
+.kpi{background:var(--kaart);border:1px solid var(--lijn);border-radius:10px;padding:10px;text-align:center}
+.kpi .n{font-size:22px;font-weight:700;color:var(--groen)}
+.kpi .l{font-size:11px;color:var(--grijs)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.filters select,.filters input{width:auto;min-width:110px}
+.item{background:var(--kaart);border:1px solid var(--lijn);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.item .kop{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;flex-wrap:wrap}
+.item .kop .id{font-weight:700;font-size:12px;color:var(--groen);min-width:56px}
+.item .kop .oms{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .kop .datum{font-size:11px;color:var(--grijs);white-space:nowrap}
+.stadium{font-size:11px;color:var(--grijs);white-space:nowrap;padding:3px 8px;background:#eef1ef;border-radius:8px}
+.knop.volgende{background:#e8f0ec;color:var(--groen);font-size:11px;padding:6px 9px;white-space:nowrap;border-radius:8px;font-weight:600}
+.pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.pill{padding:6px 10px;border-radius:14px;font-size:12px;background:#eef1ef;color:var(--grijs);border:1px solid var(--lijn)}
+.pill.klaar{background:#e3f3ea;color:var(--groen);border-color:#cdeadb}
+.pill.actief{background:var(--groen);color:#fff;font-weight:600;border-color:var(--groen)}
+.bchips{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.bchip{padding:4px 9px;border-radius:12px;font-size:11px;background:#eef1ef;color:var(--groen);border:1px solid var(--lijn)}
+.bchip.gekozen{background:var(--groen);color:#fff;font-weight:600;border-color:var(--groen)}
+.bedrijf-nieuw{display:flex;gap:6px;margin-top:6px}
+.bedrijf-nieuw input{flex:1}
+.kpi.warn{border-color:#f2a541;background:#fff8ec}
+.kpi.warn .n{color:#c1442e}
+.stadium.nogcat{background:#fdf0dd;color:#a15c00;font-weight:600}
+.vervallen-toggle{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--grijs);white-space:nowrap}
+.vervallen-toggle input{width:auto}
+.traject-kies{margin-top:6px}
+.traject-knoppen{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:6px}
+@media(max-width:560px){.traject-knoppen{grid-template-columns:1fr}}
+.tknop{border:1px solid var(--lijn);border-radius:10px;padding:10px 8px;font-size:12.5px;font-weight:600;text-align:center;background:#fafbfa;display:flex;flex-direction:column;gap:4px;line-height:1.3}
+.tknop .tsub{display:block;font-size:10.5px;font-weight:400;color:var(--grijs)}
+.tknop.regulier{border-color:#c9d6c2}
+.tknop.regulier:hover{background:#eef5ea}
+.tknop.verhaal{border-color:#e6c2a8}
+.tknop.verhaal:hover{background:#fbf1e8}
+.tknop.indienen{border-color:#b9cfe3}
+.tknop.indienen:hover{background:#eaf2fa}
+.tknop-mini{border:1px dashed var(--lijn);border-radius:8px;padding:7px 10px;font-size:11.5px;font-weight:600;text-align:center;background:#f4f8fb;color:var(--blauw);margin-top:8px;width:100%}
+.tknop-mini:hover{background:#e8f1f8}
+.override-cat{font-size:11px;color:var(--blauw);text-decoration:underline;margin-top:4px;margin-left:10px;display:inline-block}
+.traject-actief{margin-top:6px}
+.traject-badge{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600;color:#fff;margin-bottom:6px}
+.traject-badge.regulier{background:#6c9a5a}
+.traject-badge.verhaal_derden{background:#c1752e}
+.traject-badge.indienen_verzekeraar{background:var(--groen)}
+.traject-badge.al_verwerkt_betaald{background:var(--blauw)}
+.wijzig-cat{font-size:11px;color:var(--grijs);text-decoration:underline;margin-top:4px;display:inline-block}
+.detail{border-top:1px solid var(--lijn);padding:12px;display:none;background:#fafbfa}
+.detail.open{display:block}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media(max-width:560px){.grid2{grid-template-columns:1fr}}
+.foto-ref{font-size:11px;color:var(--grijs);word-break:break-all;background:#f2f4f3;border-radius:6px;padding:6px 8px;margin-top:4px}
+.opslaan-rij{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+#login{position:fixed;inset:0;background:var(--groen);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+#login .paneel{background:#fff;border-radius:14px;padding:26px 22px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px}
+#login h1{font-size:19px;color:var(--groen)}
+#login .fout{color:var(--rood);font-size:13px;display:none}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:120;max-width:90vw}
+#toast.zien{opacity:1}
+.leeg{color:var(--grijs);font-size:13px;padding:8px 0}
+details.log summary{font-size:13px;color:var(--grijs);cursor:pointer;padding:4px 0}
+details.log .regel{font-size:12px;color:var(--grijs);display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--lijn)}
+@media(min-width:700px){ #tabs button{flex:0 0 auto;padding:10px 22px} }
+</style>
+</head>
+<body>
+<div id="login" style="display:none">
+  <div class="paneel">
+    <h1>🛡️ Schade-inventarisatie<br>Kwekerij Baas</h1>
+    <label>Toegangscode<br><input type="password" id="lg-code" style="width:100%" autocomplete="current-password"></label>
+    <label>Wie ben je?<br>
+      <select id="lg-wie" style="width:100%">
+        <option>Dieter</option><option>Jarno</option><option>Hettie</option><option>Fimme</option>
+        <option>Mariet</option><option>Jeroen</option><option>Manuela</option><option>Patrick</option>
+        <option>Jacob</option><option>Albert</option><option>Mariska</option><option>Dennis</option>
+        <option>Rick</option><option>Anders</option>
+      </select></label>
+    <div class="fout" id="lg-fout">Code klopt niet, probeer opnieuw.</div>
+    <button class="knop" id="lg-knop">Inloggen</button>
+  </div>
+</div>
+<div id="topbar"><h1>🛡️ Schade-inventarisatie</h1><span class="wie" id="tb-wie"></span></div>
+<div id="tabs"></div>
+<main id="app"></main>
+<div id="toast"></div>
+<script>
+'use strict';
+const API = 'https://hlgvtxcwbhrbbcozvsen.supabase.co/functions/v1/schade/api';
+const TRAJECTEN = {
+  regulier: { naam:'Regulier gerepareerd', kort:'Regulier', stappenNamen:['Gereed / vervallen'] },
+  verhaal_derden: { naam:'Verhaalbaar op derden', kort:'Verhaal op derden', stappenNamen:['Categorie bepaald','Schadebedrag/offerte toegevoegd','Doorgegeven aan verzekeraar'] },
+  indienen_verzekeraar: { naam:'Indienen bij verzekeraar', kort:'Indienen', stappenNamen:['Categorie bepaald','Factuur/uren gekoppeld','Ingediend bij verzekeraar'] },
+  al_verwerkt_betaald: { naam:'Al verwerkt & betaald (regulier)', kort:'Al verwerkt & betaald', stappenNamen:['Gereed / vervallen — geen onderbouwing nodig'] },
+};
+const TRAJECT_MAXSTAP = { regulier:2, verhaal_derden:3, indienen_verzekeraar:3, al_verwerkt_betaald:2 };
+const EEN_TIK = new Set(['regulier','al_verwerkt_betaald']);
+function trajectStapLabel(i){
+  if(!i.traject) return 'Nog te categoriseren';
+  const t = TRAJECTEN[i.traject];
+  const idx = Math.max(1, i.traject_stap) - 1;
+  const naam = t.stappenNamen[Math.min(idx, t.stappenNamen.length-1)] || t.stappenNamen[t.stappenNamen.length-1];
+  return t.kort+' — '+naam+' ('+i.traject_stap+'/'+TRAJECT_MAXSTAP[i.traject]+')';
+}
+function bedragLabel(traject){
+  if(traject==='verhaal_derden') return 'Geschat schadebedrag / offerte (€)';
+  if(traject==='indienen_verzekeraar') return 'Bedrag factuur/uren (€)';
+  return null;
+}
+function referentieLabel(traject){
+  if(traject==='verhaal_derden') return 'Offerte-/schattingreferentie';
+  if(traject==='indienen_verzekeraar') return 'Factuurreferentie';
+  return null;
+}
+function canonBedrijven(){
+  // gedeelde bedrijvenlijst uit de bouwplanning-app (tabel rp_bedrijf) — tap-chips
+  return (S.data && S.data.bedrijven || []).map(b=>b.naam);
+}
+function alleBedrijven(){
+  // datalist-suggesties: canonieke lijst + historische vrije-tekst waarden (compatibiliteit oudere items)
+  const set = new Set(canonBedrijven());
+  (S.data && S.data.items || []).forEach(i=>{ if(i.uitgevoerd_door) set.add(String(i.uitgevoerd_door).trim()); });
+  return Array.from(set).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+}
+
+const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterCat:'', filterTraject:'', toonVervallen:false, zoek:'',
+  code:localStorage.getItem('si_code')||'', wie:localStorage.getItem('si_wie')||'' };
+
+async function api(body){
+  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(Object.assign({code:S.code,wie:S.wie},body))});
+  if(r.status===401) throw {auth:true};
+  if(!r.ok) throw new Error('serverfout');
+  return r.json();
+}
+async function laad(){ const j=await api({action:'state'}); S.data=j; }
+async function doe(actie, logtekst){
+  try{ await api(Object.assign({},actie,{log:logtekst||''})); await laad(); render(); toast('Opgeslagen'); }
+  catch(e){ toast(e.auth?'Niet ingelogd':'Opslaan mislukt — check je verbinding'); }
+}
+function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('zien');
+  setTimeout(()=>el.classList.remove('zien'),2200); }
+function esc(t){ return String(t==null?'':t).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+function fmtD(d){ if(!d) return '—'; const p=String(d).slice(0,10).split('-'); return p[2]+'-'+p[1]+'-'+p[0]; }
+
+const TABS=[['overzicht','Overzicht'],['items','Items'],['logboek','Logboek']];
+function render(){
+  document.getElementById('tb-wie').textContent=S.wie;
+  renderBedrijvenDatalist();
+  const tabs=document.getElementById('tabs');
+  tabs.innerHTML=TABS.map(([k,t])=>'<button data-v="'+k+'" class="'+(S.view===k?'actief':'')+'">'+t+'</button>').join('');
+  tabs.querySelectorAll('button').forEach(b=>b.onclick=()=>{S.view=b.dataset.v;render();window.scrollTo(0,0);});
+  const app=document.getElementById('app');
+  if(!S.data){ app.innerHTML='<div class="leeg">Laden…</div>'; return; }
+  if(S.view==='overzicht') rOverzicht(app);
+  else if(S.view==='items') rItems(app);
+  else rLogboek(app);
+}
+
+function renderBedrijvenDatalist(){
+  let dl = document.getElementById('bedrijven-lijst');
+  if(!dl){ dl=document.createElement('datalist'); dl.id='bedrijven-lijst'; document.body.appendChild(dl); }
+  dl.innerHTML = alleBedrijven().map(b=>'<option value="'+esc(b)+'">').join('');
+}
+function rOverzicht(app){
+  const items=S.data.items.filter(i=>i.categorie!=='steun');
+  const totaal=items.length;
+  const nogCat = items.filter(i=>!i.traject).length;
+  const regulier = items.filter(i=>i.traject==='regulier').length;
+  const alVerwerkt = items.filter(i=>i.traject==='al_verwerkt_betaald').length;
+  const verhaal = items.filter(i=>i.traject==='verhaal_derden');
+  const indienen = items.filter(i=>i.traject==='indienen_verzekeraar');
+  const verhaalKlaar = verhaal.filter(i=>i.traject_stap>=3).length;
+  const indienenKlaar = indienen.filter(i=>i.traject_stap>=3).length;
+  let h='<div class="kpis">';
+  h+='<div class="kpi"><div class="n">'+totaal+'</div><div class="l">Schade-items totaal</div></div>';
+  h+='<div class="kpi warn"><div class="n">'+nogCat+'</div><div class="l">Nog te categoriseren</div></div>';
+  h+='<div class="kpi"><div class="n">'+regulier+'</div><div class="l">Regulier (vervallen)</div></div>';
+  h+='<div class="kpi"><div class="n">'+alVerwerkt+'</div><div class="l">Al verwerkt & betaald (regulier)</div></div>';
+  h+='<div class="kpi"><div class="n">'+verhaal.length+'</div><div class="l">Verhaal op derden ('+verhaalKlaar+' afgerond)</div></div>';
+  h+='<div class="kpi"><div class="n">'+indienen.length+'</div><div class="l">Indienen bij verzekeraar ('+indienenKlaar+' afgerond)</div></div>';
+  h+='</div>';
+  h+='<div class="kaart"><h2>Status voortgang</h2>';
+  h+='<div class="stil">'+nogCat+' van de '+totaal+' items zijn nog niet gecategoriseerd (Regulier / Al verwerkt &amp; betaald / Verhaal op derden / Indienen bij verzekeraar). '
+    +verhaalKlaar+'/'+verhaal.length+' verhaal-op-derden-items zijn doorgegeven aan de verzekeraar, '
+    +indienenKlaar+'/'+indienen.length+' indienen-items zijn daadwerkelijk ingediend.</div>';
+  h+='<div style="margin-top:10px"><button class="knop klein" id="naar-items">Naar items ›</button></div>';
+  h+='</div>';
+  h+='<div class="kaart"><h2>Per locatie</h2>';
+  const perLoc={};
+  for(const i of items){ const l=(i.locatie||'onbekend').slice(0,20); perLoc[l]=(perLoc[l]||0)+1; }
+  const sorted=Object.entries(perLoc).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  h+=sorted.map(([l,n])=>'<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--lijn);font-size:13px"><span>'+esc(l)+'</span><span class="stil">'+n+'</span></div>').join('');
+  h+='</div>';
+  app.innerHTML=h;
+  document.getElementById('naar-items').onclick=()=>{S.view='items';render();window.scrollTo(0,0);};
+}
+
+function matchFilter(i){
+  if(S.filterCat && i.categorie!==S.filterCat) return false;
+  if(!S.toonVervallen && (i.traject==='regulier'||i.traject==='al_verwerkt_betaald')) return false;
+  if(S.filterTraject==='nog' && i.traject) return false;
+  if(S.filterTraject && S.filterTraject!=='nog' && i.traject!==S.filterTraject) return false;
+  if(S.zoek){
+    const z=S.zoek.toLowerCase();
+    if(!(String(i.schade_id).toLowerCase().includes(z) || String(i.locatie||'').toLowerCase().includes(z) || String(i.omschrijving||'').toLowerCase().includes(z))) return false;
+  }
+  return true;
+}
+function rItems(app){
+  let h='<div class="kaart"><h2>+ Nieuwe schade toevoegen</h2>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<input type="text" id="ni-locatie" placeholder="locatie (bv. EW4 afd 6)" style="flex:1;min-width:140px">'
+    +'<input type="text" id="ni-oms" placeholder="omschrijving" style="flex:2;min-width:160px">'
+    +'<button class="knop klein" id="ni-knop">Toevoegen</button></div></div>';
+  h+='<div class="filters">'
+    +'<input type="text" id="f-zoek" placeholder="zoeken…" value="'+esc(S.zoek)+'">'
+    +'<select id="f-cat"><option value="">alle categorieën</option><option value="schade">schade</option><option value="gewas">gewas</option><option value="steun">steun/overig</option></select>'
+    +'<select id="f-traject"><option value="">alle trajecten</option><option value="nog">nog te categoriseren</option><option value="regulier">regulier</option><option value="verhaal_derden">verhaal op derden</option><option value="indienen_verzekeraar">indienen bij verzekeraar</option><option value="al_verwerkt_betaald">al verwerkt & betaald</option></select>'
+    +'<label class="vervallen-toggle"><input type="checkbox" id="f-vervallen"> toon afgehandeld (regulier / al verwerkt)</label>'
+    +'</div>';
+  const items=S.data.items.filter(matchFilter).sort((a,b)=>String(a.datum||'').localeCompare(String(b.datum||''))||String(a.schade_id).localeCompare(b.schade_id));
+  h+='<div class="stil" style="margin-bottom:6px">'+items.length+' item(en)</div>';
+  h+=items.map(itemRow).join('') || '<div class="leeg">Geen items gevonden.</div>';
+  app.innerHTML=h;
+  document.getElementById('f-zoek').oninput=e=>{S.zoek=e.target.value;renderItemsOnly();};
+  document.getElementById('f-zoek').value=S.zoek;
+  document.getElementById('f-cat').value=S.filterCat; document.getElementById('f-cat').onchange=e=>{S.filterCat=e.target.value;render();};
+  document.getElementById('f-traject').value=S.filterTraject; document.getElementById('f-traject').onchange=e=>{S.filterTraject=e.target.value;render();};
+  document.getElementById('f-vervallen').checked=S.toonVervallen; document.getElementById('f-vervallen').onchange=e=>{S.toonVervallen=e.target.checked;render();};
+  document.getElementById('ni-knop').onclick=()=>{
+    const loc=document.getElementById('ni-locatie').value.trim();
+    const oms=document.getElementById('ni-oms').value.trim();
+    if(!oms){toast('Vul een omschrijving in');return;}
+    doe({action:'item_add',locatie:loc,omschrijving:oms}, 'Nieuwe schade toegevoegd: '+oms);
+  };
+  koppelItems(app);
+}
+function renderItemsOnly(){ rItems(document.getElementById('app')); }
+function trajectUI(i){
+  if(!i.traject){
+    return '<div class="traject-kies">'
+      +'<label class="veld">Categorie kiezen — bepaalt het vervolgtraject (max 3 stappen totaal)</label>'
+      +'<div class="traject-knoppen">'
+      +'<button type="button" class="tknop regulier" data-kies-traject="regulier" data-id="'+i.id+'">Regulier gerepareerd<span class="tsub">vervalt direct, geen verdere actie</span></button>'
+      +'<button type="button" class="tknop verhaal" data-kies-traject="verhaal_derden" data-id="'+i.id+'">Verhaalbaar op derden<span class="tsub">schadebedrag/offerte nodig, verzekeraar verhaalt</span></button>'
+      +'<button type="button" class="tknop indienen" data-kies-traject="indienen_verzekeraar" data-id="'+i.id+'">Indienen bij verzekeraar<span class="tsub">factuur- of urenonderbouwing nodig</span></button>'
+      +'</div>'
+      +'<button type="button" class="tknop-mini" data-kies-traject="al_verwerkt_betaald" data-id="'+i.id+'">✓ Al verwerkt & betaald (regulier) — geen onderbouwing nodig</button>'
+      +'</div>';
+  }
+  const t = TRAJECTEN[i.traject];
+  const max = TRAJECT_MAXSTAP[i.traject];
+  const pills = '<div class="pills" data-traject-pills="'+i.id+'">'
+    + t.stappenNamen.map((naam,idx)=>{
+        const stapNr = idx+1;
+        const cls = stapNr===i.traject_stap ? 'actief' : (stapNr<i.traject_stap?'klaar':'');
+        return '<button type="button" class="pill '+cls+'" data-traject-stap="'+stapNr+'" data-id="'+i.id+'">'+esc(naam)+'</button>';
+      }).join('')
+    + '</div>';
+  return '<div class="traject-actief">'
+    +'<span class="traject-badge '+i.traject+'">'+esc(t.naam)+'</span>'
+    +pills
+    +'<button type="button" class="wijzig-cat" data-wijzig-traject="'+i.id+'">✕ wijzig categorie</button>'
+    +(i.traject!=='al_verwerkt_betaald' ? '<button type="button" class="override-cat" data-kies-traject="al_verwerkt_betaald" data-id="'+i.id+'">✓ al verwerkt & betaald (regulier) — geen onderbouwing nodig</button>' : '')
+    +'</div>';
+}
+function itemRow(i){
+  const catChip='<span class="chip '+i.categorie+'">'+esc(i.categorie)+'</span>';
+  const max = i.traject ? TRAJECT_MAXSTAP[i.traject] : null;
+  const volgendeNaam = (i.traject && i.traject_stap<max) ? TRAJECTEN[i.traject].stappenNamen[i.traject_stap] : null;
+  const bLabel = bedragLabel(i.traject);
+  const rLabel = referentieLabel(i.traject);
+  let d='';
+  if(S.open===i.id){
+    const meer = S.meerOpen===i.id;
+    d='<div class="detail open">'
+      +'<div class="grid2">'
+      +veld('Locatie','locatie',i.locatie,'text')
+      +veld('Categorie','categorie',i.categorie,'select',['schade','gewas','steun'])
+      +'</div>'
+      +veldFull('Omschrijving / duiding','omschrijving',i.omschrijving,'textarea')
+      +'<div class="foto-ref">📎 '+esc(i.foto_referenties||'geen foto-referentie')+'</div>'
+      +veldFull('Opmerkingen','opmerkingen',i.opmerkingen,'textarea')
+      +'<label class="veld" style="margin-top:10px">Traject</label>'
+      +trajectUI(i)
+      +(bLabel ? '<div class="grid2" style="margin-top:8px">'
+          +veld(bLabel,'vergoed_bedrag',i.vergoed_bedrag,'number')
+          +veld(rLabel,'factuur_referentie',i.factuur_referentie,'text')
+        +'</div>' : '')
+      +'<button type="button" class="knop licht klein" data-toggle-meer="'+i.id+'" style="margin-top:10px">'+(meer?'Minder details ▴':'Meer details — polis, bedrijf, status (optioneel) ▾')+'</button>'
+      +(meer ? (
+        '<div class="grid2" style="margin-top:6px">'
+        +veld('Polis / dekking','polis',i.polis,'select',['Opstalpolis (gebouw/glas/dek)','Gewaspolis (bij Edward/verzekeraar te bevestigen)','Opstal-/inventarispolis (voertuig/materieel) — te bevestigen',"Opstalpolis — mogelijk budget 'Doeken'",'Nog te bepalen'])
+        +veld('Status reparatie','status_reparatie',i.status_reparatie,'text')
+        +'</div>'
+        +veldBedrijf(i.uitgevoerd_door,i.id)
+      ) : '')
+      +'<div class="stil" style="margin-top:8px">Laatst gewijzigd door: '+esc(i.laatst_gewijzigd_door||'—')+(i.updated_at?(' · '+String(i.updated_at).slice(0,16).replace('T',' ')):'')+'</div>'
+      +'<div class="opslaan-rij"><button class="knop licht klein" data-sluit="1">Sluiten</button><button class="knop klein" data-opslaan="'+i.id+'">Opslaan</button></div>'
+      +'</div>';
+  }
+  return '<div class="item" data-id="'+i.id+'">'
+    +'<div class="kop" data-open="'+i.id+'">'
+    +'<span class="id">'+esc(i.schade_id)+'</span>'
+    +catChip
+    +'<span class="oms">'+esc(i.locatie||i.omschrijving||'')+'</span>'
+    +'<span class="stadium '+(i.traject?'':'nogcat')+'">'+esc(trajectStapLabel(i))+'</span>'
+    +(volgendeNaam?'<button type="button" class="knop klein volgende" data-snel="'+i.id+'" title="Zet in 1 tik door naar de volgende stap">'+esc(volgendeNaam)+' →</button>':'')
+    +'<span class="datum">'+fmtD(i.datum)+'</span>'
+    +'</div>'+d+'</div>';
+}
+function veld(label,name,val,type,opts){
+  if(type==='select'){
+    return '<div><label class="veld">'+esc(label)+'</label><select data-veld="'+name+'">'
+      +opts.map(o=>'<option value="'+esc(o)+'" '+(val===o?'selected':'')+'>'+esc(o)+'</option>').join('')
+      +(opts.includes(val)?'':'<option value="'+esc(val||'')+'" selected>'+esc(val||'(leeg)')+'</option>')
+      +'</select></div>';
+  }
+  return '<div><label class="veld">'+esc(label)+'</label><input type="'+type+'" data-veld="'+name+'" value="'+esc(val==null?'':val)+'"></div>';
+}
+function veldBedrijf(val,itemId){
+  const huidig = String(val||'').trim().toLowerCase();
+  const bedrijven = canonBedrijven();
+  const chips = bedrijven.length
+    ? '<div class="bchips" data-bchips="'+itemId+'">'+bedrijven.map(b=>'<button type="button" class="bchip'+(b.trim().toLowerCase()===huidig?' gekozen':'')+'" data-vulbedrijf="'+esc(b)+'">'+esc(b)+'</button>').join('')+'</div>'
+    : '';
+  return '<div><label class="veld">Bedrijf (repareert / factuurbron) — tik om te kiezen, of typ vrij</label>'
+    +'<input type="text" data-veld="uitgevoerd_door" list="bedrijven-lijst" placeholder="bv. KZ, Huisman, Luiten…" value="'+esc(val==null?'':val)+'">'
+    +chips
+    +'<div class="bedrijf-nieuw">'
+    +'<input type="text" data-nieuw-bedrijf="'+itemId+'" placeholder="+ nieuw bedrijf toevoegen…">'
+    +'<button type="button" class="knop licht klein" data-bedrijf-toevoegen="'+itemId+'">Toevoegen</button>'
+    +'</div>'
+    +'</div>';
+}
+function veldFull(label,name,val,type){
+  if(type==='textarea') return '<label class="veld">'+esc(label)+'</label><textarea data-veld="'+name+'">'+esc(val||'')+'</textarea>';
+  return '<label class="veld">'+esc(label)+'</label><input type="text" data-veld="'+name+'" value="'+esc(val||'')+'">';
+}
+function koppelItems(root){
+  root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>{
+    const id=+el.dataset.open;
+    S.open = S.open===id ? null : id;
+    if(S.open===null) S.meerOpen=null;
+    render();
+  });
+  root.querySelectorAll('[data-sluit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();S.open=null;S.meerOpen=null;render();});
+  root.querySelectorAll('[data-toggle-meer]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const id=+b.dataset.toggleMeer;
+    S.meerOpen = S.meerOpen===id ? null : id;
+    render();
+  });
+  root.querySelectorAll('[data-opslaan]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const id=+b.dataset.opslaan;
+    const item=document.querySelector('.item[data-id="'+id+'"]');
+    const fields={};
+    item.querySelectorAll('[data-veld]').forEach(inp=>{
+      let v=inp.value;
+      if(inp.dataset.veld==='vergoed_bedrag') v = v===''? null : Number(v);
+      fields[inp.dataset.veld]=v;
+    });
+    const i=S.data.items.find(x=>x.id===id);
+    doe({action:'item_update',id, fields}, i.schade_id+' bijgewerkt door '+S.wie);
+  });
+  root.querySelectorAll('[data-vulbedrijf]').forEach(chip=>chip.onclick=(e)=>{
+    e.stopPropagation();
+    const naam=chip.dataset.vulbedrijf;
+    const detail=chip.closest('.detail');
+    const inp=detail.querySelector('[data-veld="uitgevoerd_door"]');
+    if(inp) inp.value=naam;
+    detail.querySelectorAll('.bchip').forEach(c=>c.classList.toggle('gekozen', c===chip));
+  });
+  root.querySelectorAll('[data-bedrijf-toevoegen]').forEach(btn=>btn.onclick=async(e)=>{
+    e.stopPropagation();
+    const itemId=+btn.dataset.bedrijfToevoegen;
+    const inp=document.querySelector('[data-nieuw-bedrijf="'+itemId+'"]');
+    const naam=(inp&&inp.value||'').trim();
+    if(!naam){ toast('Vul een bedrijfsnaam in'); return; }
+    await doe({action:'bedrijf_add', naam}, 'Nieuw bedrijf toegevoegd: '+naam);
+    const item=document.querySelector('.item[data-id="'+itemId+'"]');
+    const bedrijfInp=item && item.querySelector('[data-veld="uitgevoerd_door"]');
+    if(bedrijfInp) bedrijfInp.value=naam;
+  });
+  root.querySelectorAll('[data-snel]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const id=+b.dataset.snel;
+    const i=S.data.items.find(x=>x.id===id);
+    if(!i.traject) return;
+    const n=Math.min(i.traject_stap+1, TRAJECT_MAXSTAP[i.traject]);
+    doe({action:'item_update', id, fields:{traject_stap:n}}, i.schade_id+': '+TRAJECTEN[i.traject].kort+' → stap '+n+' ('+S.wie+')');
+  });
+  root.querySelectorAll('[data-kies-traject]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const id=+b.dataset.id;
+    const traject=b.dataset.kiesTraject;
+    const i=S.data.items.find(x=>x.id===id);
+    if(i.traject && i.traject!==traject && !confirm(i.schade_id+' stond al op "'+TRAJECTEN[i.traject].kort+'". Omzetten naar "'+TRAJECTEN[traject].kort+'"?')) return;
+    const stap = EEN_TIK.has(traject) ? TRAJECT_MAXSTAP[traject] : 1;
+    doe({action:'item_update', id, fields:{traject, traject_stap:stap}}, i.schade_id+': categorie → '+TRAJECTEN[traject].kort+' ('+S.wie+')');
+  });
+  root.querySelectorAll('[data-traject-stap]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const id=+b.dataset.id;
+    const n=+b.dataset.trajectStap;
+    const i=S.data.items.find(x=>x.id===id);
+    if(!i.traject) return;
+    doe({action:'item_update', id, fields:{traject_stap:n}}, i.schade_id+': '+TRAJECTEN[i.traject].kort+' → stap '+n+' ('+S.wie+')');
+  });
+  root.querySelectorAll('[data-wijzig-traject]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const id=+b.dataset.wijzigTraject;
+    const i=S.data.items.find(x=>x.id===id);
+    doe({action:'item_update', id, fields:{traject:null, traject_stap:0}}, i.schade_id+': categorie gewijzigd/gereset door '+S.wie);
+  });
+}
+
+function rLogboek(app){
+  const log=S.data.logboek||[];
+  let h='<div class="kaart"><details class="log" open><summary>Laatste wijzigingen ('+log.length+')</summary>';
+  h+=log.length? log.map(r=>'<div class="regel"><span>'+esc(r.actie)+'</span><span class="stil">'+esc((r.wie||'')+' · '+String(r.ts).slice(5,16).replace('T',' '))+'</span></div>').join('') : '<div class="leeg">Nog geen wijzigingen.</div>';
+  h+='</details></div>';
+  app.innerHTML=h;
+}
+
+async function start(){
+  if(!S.code){ toonLogin(); return; }
+  try{ await laad(); render(); }
+  catch(e){ if(e.auth) toonLogin(); else { document.getElementById('app').innerHTML='<div class="leeg">Kan de data niet laden — check je internetverbinding en ververs de pagina.</div>'; } }
+}
+function toonLogin(){
+  const lg=document.getElementById('login'); lg.style.display='flex';
+  document.getElementById('lg-knop').onclick=async()=>{
+    S.code=document.getElementById('lg-code').value.trim();
+    S.wie=document.getElementById('lg-wie').value;
+    try{ await laad();
+      localStorage.setItem('si_code',S.code); localStorage.setItem('si_wie',S.wie);
+      lg.style.display='none'; render();
+    }catch(e){ document.getElementById('lg-fout').style.display='block'; }
+  };
+}
+setInterval(async()=>{ if(S.data&&document.visibilityState==='visible'){ try{ await laad(); render(); }catch(e){} } }, 90000);
+document.addEventListener('visibilitychange',async()=>{ if(document.visibilityState==='visible'&&S.data){ try{ await laad(); render(); }catch(e){} } });
+start();
+</script>
+</body>
+</html>
