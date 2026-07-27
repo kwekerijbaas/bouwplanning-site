@@ -160,6 +160,8 @@ details.log .regel{font-size:12px;color:var(--grijs)}
     <div class="keuze" id="lg-namen">
       <button data-naam="Jarno">Jarno</button>
       <button data-naam="Dieter">Dieter</button>
+      <button data-naam="Jeroen">Jeroen</button>
+      <button data-naam="Jacob">Jacob</button>
       <button data-naam="Anders">Anders</button>
     </div>
     <button class="knop licht" id="lg-sluit" style="display:none">Annuleren</button>
@@ -1086,7 +1088,8 @@ function rAfdDetail(app){
       +'</div>';
   });
   const inAfd=new Set(rows.map(r=>r.a.naam));
-  const beschikbaar=actCats().filter(c=>!inAfd.has(c.naam));
+  const beschikbaar=actCats().filter(c=>!inAfd.has(c.naam))
+    .slice().sort((a,b)=>a.naam.localeCompare(b.naam,'nl',{sensitivity:'base'}));
   h+='<div style="margin-top:10px"><div class="stil" style="margin-bottom:4px">Activiteit toevoegen (tik):</div>'
     +(beschikbaar.length?'<div class="keuze">'+beschikbaar.map(c=>'<button data-actcat="'+c.id+'"><i class="ldot" style="background:'+c.kleur+'"></i> '+esc(c.naam)+'</button>').join('')+'</div>':'')
     +'<div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="nieuw-act" placeholder="of een nieuwe activiteit…" style="flex:1"><button class="knop klein" id="nieuw-act-knop">+ aanmaken</button></div>'
