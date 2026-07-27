@@ -2076,7 +2076,7 @@ function rapportTekst(bedrijf, van, tot, data){
   for(const d of data.afdelingen){
     t+=afdNaam(d.afd)+NL;
     for(const r of d.acts){
-      t+='• '+r.a.naam+': '+fmt(r.start)+' t/m '+fmt(r.eind)+' ('+r.a.duur+' werkdagen'
+      t+='• '+r.a.naam+': '+fmt(r.start)+' t/m '+fmt(r.eind)+' ('+r.a.duur+(r.a.duur===1?' werkdag':' werkdagen')
         +(r.a.status==='klaar'?', afgerond':(r.a.status==='bezig'?', mee bezig':''))+')'+NL;
     }
     t+=NL;
@@ -2175,6 +2175,21 @@ function deelRapport(bedrijf){
   const nuMa=maandagVan(pd(vandaagISO()));
   let van=new Date(nuMa);
   let tot=new Date(nuMa); tot.setUTCDate(tot.getUTCDate()+20);
+  // Staat er in de komende weken niets voor dit bedrijf? Spring dan naar de eerste week
+  // waarin ze wél werk hebben, zodat je niet op een leeg rapport uitkomt.
+  if(!rapportData(bedrijf, van, tot).afdelingen.length){
+    let eerste=null;
+    for(const afd of S.data.afdelingen.filter(a=>a.actief)){
+      for(const r of planAfdeling(afd)){
+        if(r.a.status==='nvt'||!r.start||!r.eind) continue;
+        const b=bedrijfVan(afd,r.a);
+        if(!b||b.naam!==bedrijf) continue;
+        if(r.eind<nuMa) continue;
+        if(!eerste||r.start<eerste) eerste=r.start;
+      }
+    }
+    if(eerste){ van=maandagVan(new Date(eerste)); tot=new Date(van); tot.setUTCDate(tot.getUTCDate()+20); }
+  }
   const maak=()=>{
     van=maandagVan(van);
     tot=new Date(maandagVan(tot)); tot.setUTCDate(tot.getUTCDate()+6);
