@@ -88,6 +88,12 @@ label.veld{display:block;font-size:12px;color:var(--grijs);margin:8px 0 3px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 @media(max-width:560px){.grid2{grid-template-columns:1fr}}
 .foto-ref{font-size:11px;color:var(--grijs);word-break:break-all;background:#f2f4f3;border-radius:6px;padding:6px 8px;margin-top:4px}
+.foto-thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.foto-thumbs a{display:block;width:64px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--lijn);flex:none}
+.foto-thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+.foto-thumbs .vid-chip{width:auto;height:auto;padding:6px 8px;font-size:11px;color:var(--blauw);background:#eef4fa;display:flex;align-items:center}
+.upload-rij{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.upload-status{font-size:11px;color:var(--grijs)}
 .opslaan-rij{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
 #login{position:fixed;inset:0;background:var(--groen);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
 #login .paneel{background:#fff;border-radius:14px;padding:26px 22px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px}
@@ -124,6 +130,7 @@ details.log .regel{font-size:12px;color:var(--grijs);display:flex;justify-conten
 <script>
 'use strict';
 const API = 'https://hlgvtxcwbhrbbcozvsen.supabase.co/functions/v1/schade/api';
+const FOTO_BASE = 'https://hlgvtxcwbhrbbcozvsen.supabase.co/storage/v1/object/public/schade-fotos/';
 const TRAJECTEN = {
   regulier: { naam:'Regulier gerepareerd', kort:'Regulier', stappenNamen:['Gereed / vervallen'] },
   verhaal_derden: { naam:'Verhaalbaar op derden', kort:'Verhaal op derden', stappenNamen:['Categorie bepaald','Schadebedrag/offerte toegevoegd','Doorgegeven aan verzekeraar'] },
@@ -158,6 +165,21 @@ function alleBedrijven(){
   const set = new Set(canonBedrijven());
   (S.data && S.data.items || []).forEach(i=>{ if(i.uitgevoerd_door) set.add(String(i.uitgevoerd_door).trim()); });
   return Array.from(set).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+}
+function fotoLijst(i){
+  return String(i.foto_referenties||'').split(',').map(s=>s.trim()).filter(Boolean);
+}
+function isAfbeelding(naam){
+  return /[.](jpg|jpeg|png|webp)$/i.test(naam);
+}
+function fotoThumbs(i){
+  const namen = fotoLijst(i);
+  if(!namen.length) return '<div class="foto-ref">📎 geen foto-referentie</div>';
+  return '<div class="foto-thumbs">'+namen.map(n=>{
+    const url = FOTO_BASE+encodeURIComponent(n);
+    if(isAfbeelding(n)) return '<a href="'+url+'" target="_blank" rel="noopener" title="'+esc(n)+'"><img src="'+url+'" loading="lazy"></a>';
+    return '<a class="vid-chip" href="'+url+'" target="_blank" rel="noopener">🎬 '+esc(n)+'</a>';
+  }).join('')+'</div>';
 }
 
 const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterCat:'', filterTraject:'', toonVervallen:false, zoek:'',
@@ -213,7 +235,7 @@ function rOverzicht(app){
   h+='<div class="kpi"><div class="n">'+totaal+'</div><div class="l">Schade-items totaal</div></div>';
   h+='<div class="kpi warn"><div class="n">'+nogCat+'</div><div class="l">Nog te categoriseren</div></div>';
   h+='<div class="kpi"><div class="n">'+regulier+'</div><div class="l">Regulier (vervallen)</div></div>';
-  h+='<div class="kpi"><div class="n">'+alVerwerkt+'</div><div class="l">Al verwerkt & betaald (regulier)</div></div>';
+  h+='<div class="kpi"><div class="n">'+alVerwerkt+'</div><div class="l">Al verwerkt &amp; betaald (regulier)</div></div>';
   h+='<div class="kpi"><div class="n">'+verhaal.length+'</div><div class="l">Verhaal op derden ('+verhaalKlaar+' afgerond)</div></div>';
   h+='<div class="kpi"><div class="n">'+indienen.length+'</div><div class="l">Indienen bij verzekeraar ('+indienenKlaar+' afgerond)</div></div>';
   h+='</div>';
@@ -253,7 +275,7 @@ function rItems(app){
   h+='<div class="filters">'
     +'<input type="text" id="f-zoek" placeholder="zoeken…" value="'+esc(S.zoek)+'">'
     +'<select id="f-cat"><option value="">alle categorieën</option><option value="schade">schade</option><option value="gewas">gewas</option><option value="steun">steun/overig</option></select>'
-    +'<select id="f-traject"><option value="">alle trajecten</option><option value="nog">nog te categoriseren</option><option value="regulier">regulier</option><option value="verhaal_derden">verhaal op derden</option><option value="indienen_verzekeraar">indienen bij verzekeraar</option><option value="al_verwerkt_betaald">al verwerkt & betaald</option></select>'
+    +'<select id="f-traject"><option value="">alle trajecten</option><option value="nog">nog te categoriseren</option><option value="regulier">regulier</option><option value="verhaal_derden">verhaal op derden</option><option value="indienen_verzekeraar">indienen bij verzekeraar</option><option value="al_verwerkt_betaald">al verwerkt &amp; betaald</option></select>'
     +'<label class="vervallen-toggle"><input type="checkbox" id="f-vervallen"> toon afgehandeld (regulier / al verwerkt)</label>'
     +'</div>';
   const items=S.data.items.filter(matchFilter).sort((a,b)=>String(a.datum||'').localeCompare(String(b.datum||''))||String(a.schade_id).localeCompare(b.schade_id));
@@ -283,7 +305,7 @@ function trajectUI(i){
       +'<button type="button" class="tknop verhaal" data-kies-traject="verhaal_derden" data-id="'+i.id+'">Verhaalbaar op derden<span class="tsub">schadebedrag/offerte nodig, verzekeraar verhaalt</span></button>'
       +'<button type="button" class="tknop indienen" data-kies-traject="indienen_verzekeraar" data-id="'+i.id+'">Indienen bij verzekeraar<span class="tsub">factuur- of urenonderbouwing nodig</span></button>'
       +'</div>'
-      +'<button type="button" class="tknop-mini" data-kies-traject="al_verwerkt_betaald" data-id="'+i.id+'">✓ Al verwerkt & betaald (regulier) — geen onderbouwing nodig</button>'
+      +'<button type="button" class="tknop-mini" data-kies-traject="al_verwerkt_betaald" data-id="'+i.id+'">✓ Al verwerkt &amp; betaald (regulier) — geen onderbouwing nodig</button>'
       +'</div>';
   }
   const t = TRAJECTEN[i.traject];
@@ -299,7 +321,7 @@ function trajectUI(i){
     +'<span class="traject-badge '+i.traject+'">'+esc(t.naam)+'</span>'
     +pills
     +'<button type="button" class="wijzig-cat" data-wijzig-traject="'+i.id+'">✕ wijzig categorie</button>'
-    +(i.traject!=='al_verwerkt_betaald' ? '<button type="button" class="override-cat" data-kies-traject="al_verwerkt_betaald" data-id="'+i.id+'">✓ al verwerkt & betaald (regulier) — geen onderbouwing nodig</button>' : '')
+    +(i.traject!=='al_verwerkt_betaald' ? '<button type="button" class="override-cat" data-kies-traject="al_verwerkt_betaald" data-id="'+i.id+'">✓ al verwerkt &amp; betaald (regulier) — geen onderbouwing nodig</button>' : '')
     +'</div>';
 }
 function itemRow(i){
@@ -317,7 +339,8 @@ function itemRow(i){
       +veld('Categorie','categorie',i.categorie,'select',['schade','gewas','steun'])
       +'</div>'
       +veldFull('Omschrijving / duiding','omschrijving',i.omschrijving,'textarea')
-      +'<div class="foto-ref">📎 '+esc(i.foto_referenties||'geen foto-referentie')+'</div>'
+      +fotoThumbs(i)
+      +uploadRij(i)
       +veldFull('Opmerkingen','opmerkingen',i.opmerkingen,'textarea')
       +'<label class="veld" style="margin-top:10px">Traject</label>'
       +trajectUI(i)
@@ -347,6 +370,12 @@ function itemRow(i){
     +'<span class="datum">'+fmtD(i.datum)+'</span>'
     +'</div>'+d+'</div>';
 }
+function uploadRij(i){
+  return '<div class="upload-rij">'
+    +'<input type="file" accept="image/*" multiple data-fotoupload="'+i.id+'" style="max-width:220px">'
+    +'<span class="upload-status" data-uploadstatus="'+i.id+'"></span>'
+    +'</div>';
+}
 function veld(label,name,val,type,opts){
   if(type==='select'){
     return '<div><label class="veld">'+esc(label)+'</label><select data-veld="'+name+'">'
@@ -375,6 +404,14 @@ function veldFull(label,name,val,type){
   if(type==='textarea') return '<label class="veld">'+esc(label)+'</label><textarea data-veld="'+name+'">'+esc(val||'')+'</textarea>';
   return '<label class="veld">'+esc(label)+'</label><input type="text" data-veld="'+name+'" value="'+esc(val||'')+'">';
 }
+function leesAlsBase64(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(String(r.result).split(',')[1]);
+    r.onerror=reject;
+    r.readAsDataURL(file);
+  });
+}
 function koppelItems(root){
   root.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>{
     const id=+el.dataset.open;
@@ -388,6 +425,29 @@ function koppelItems(root){
     const id=+b.dataset.toggleMeer;
     S.meerOpen = S.meerOpen===id ? null : id;
     render();
+  });
+  root.querySelectorAll('[data-fotoupload]').forEach(inp=>inp.onclick=(e)=>e.stopPropagation());
+  root.querySelectorAll('[data-fotoupload]').forEach(inp=>inp.onchange=async(e)=>{
+    e.stopPropagation();
+    const itemId=+inp.dataset.fotoupload;
+    const files=Array.from(inp.files||[]);
+    if(!files.length) return;
+    const status=document.querySelector('[data-uploadstatus="'+itemId+'"]');
+    const i=S.data.items.find(x=>x.id===itemId);
+    const bestaand=fotoLijst(i);
+    let ok=0;
+    for(const f of files){
+      if(status) status.textContent='bezig… ('+(ok+1)+'/'+files.length+')';
+      try{
+        const b64=await leesAlsBase64(f);
+        await api({action:'upload_foto', filename:f.name, content_type:f.type||'image/jpeg', content_base64:b64});
+        if(!bestaand.includes(f.name)) bestaand.push(f.name);
+        ok++;
+      }catch(err){ toast('Upload mislukt: '+f.name); }
+    }
+    if(ok>0){
+      await doe({action:'item_update', id:itemId, fields:{foto_referenties: bestaand.join(', ')}}, ok+' foto(s) toegevoegd aan '+i.schade_id+' door '+S.wie);
+    }
   });
   root.querySelectorAll('[data-opslaan]').forEach(b=>b.onclick=(e)=>{
     e.stopPropagation();
