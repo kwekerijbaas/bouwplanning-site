@@ -45,7 +45,7 @@ label.veld{display:block;font-size:12px;color:var(--grijs);margin:8px 0 3px}
 .item .kop{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;flex-wrap:wrap}
 .item .kop .id{font-weight:700;font-size:12px;color:var(--groen);min-width:56px}
 .item .kop .oms{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item .kop .datum{font-size:11px;color:var(--grijs);white-space:nowrap}
+.item .kop .datum{font-size:12.5px;color:#0f2d4d;background:#dce9f7;font-weight:700;white-space:nowrap;padding:3px 9px;border-radius:8px}
 .stadium{font-size:11px;color:var(--grijs);white-space:nowrap;padding:3px 8px;background:#eef1ef;border-radius:8px}
 .knop.volgende{background:#e8f0ec;color:var(--groen);font-size:11px;padding:6px 9px;white-space:nowrap;border-radius:8px;font-weight:600}
 .pills{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
@@ -94,6 +94,24 @@ label.veld{display:block;font-size:12px;color:var(--grijs);margin:8px 0 3px}
 .foto-thumbs .vid-chip{width:auto;height:auto;padding:6px 8px;font-size:11px;color:var(--blauw);background:#eef4fa;display:flex;align-items:center}
 .upload-rij{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
 .upload-status{font-size:11px;color:var(--grijs)}
+#lightbox{position:fixed;inset:0;background:rgba(10,14,12,.92);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+#lightbox.open{display:flex}
+#lightbox .lb-stage{max-width:92vw;max-height:78vh;display:flex;align-items:center;justify-content:center}
+#lightbox .lb-stage img,#lightbox .lb-stage video{max-width:92vw;max-height:78vh;border-radius:8px;display:block}
+#lightbox .lb-topbar{position:absolute;top:14px;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:0 18px;color:#fff;font-size:13px}
+#lightbox .lb-close{background:rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 12px;font-size:18px;line-height:1}
+#lightbox .lb-nav{position:absolute;top:50%;margin-top:-22px;background:rgba(255,255,255,.15);color:#fff;border-radius:50%;width:44px;height:44px;font-size:22px;display:flex;align-items:center;justify-content:center}
+#lightbox .lb-prev{left:10px}
+#lightbox .lb-next{right:10px}
+#lightbox .lb-counter{color:#fff;font-size:12px;opacity:.85}
+.foto-thumbs a{cursor:pointer}
+.chip.cat-badge{background:#5c6b7a}
+.stadium.status-gereed{background:#e3f3ea;color:#1d4e8f;font-weight:600}
+.stadium.status-verhaal{background:#fdf0dd;color:#a15c00;font-weight:600}
+.gereed-toggle{border:1px solid var(--lijn);background:#fff;color:var(--grijs);margin-left:auto}
+.gereed-toggle.aan{background:#1d4e8f;color:#fff;border-color:#1d4e8f}
+.pb-item{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--lijn);flex-wrap:wrap;font-size:13px;cursor:pointer}
+.pb-item:last-child{border-bottom:none}
 .opslaan-rij{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
 #login{position:fixed;inset:0;background:var(--groen);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
 #login .paneel{background:#fff;border-radius:14px;padding:26px 22px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px}
@@ -127,35 +145,11 @@ details.log .regel{font-size:12px;color:var(--grijs);display:flex;justify-conten
 <div id="tabs"></div>
 <main id="app"></main>
 <div id="toast"></div>
+<div id="lightbox"><div class="lb-topbar"><span class="lb-counter" id="lb-counter"></span><button type="button" class="lb-close" id="lb-close">✕</button></div><button type="button" class="lb-nav lb-prev" id="lb-prev">‹</button><div class="lb-stage" id="lb-stage"></div><button type="button" class="lb-nav lb-next" id="lb-next">›</button></div>
 <script>
 'use strict';
 const API = 'https://hlgvtxcwbhrbbcozvsen.supabase.co/functions/v1/schade/api';
 const FOTO_BASE = 'https://hlgvtxcwbhrbbcozvsen.supabase.co/storage/v1/object/public/schade-fotos/';
-const TRAJECTEN = {
-  regulier: { naam:'Regulier gerepareerd', kort:'Regulier', stappenNamen:['Gereed / vervallen'] },
-  verhaal_derden: { naam:'Verhaalbaar op derden', kort:'Verhaal op derden', stappenNamen:['Categorie bepaald','Schadebedrag/offerte toegevoegd','Doorgegeven aan verzekeraar'] },
-  indienen_verzekeraar: { naam:'Indienen bij verzekeraar', kort:'Indienen', stappenNamen:['Categorie bepaald','Factuur/uren gekoppeld','Ingediend bij verzekeraar'] },
-  al_verwerkt_betaald: { naam:'Al verwerkt & betaald (regulier)', kort:'Al verwerkt & betaald', stappenNamen:['Gereed / vervallen — geen onderbouwing nodig'] },
-};
-const TRAJECT_MAXSTAP = { regulier:2, verhaal_derden:3, indienen_verzekeraar:3, al_verwerkt_betaald:2 };
-const EEN_TIK = new Set(['regulier','al_verwerkt_betaald']);
-function trajectStapLabel(i){
-  if(!i.traject) return 'Nog te categoriseren';
-  const t = TRAJECTEN[i.traject];
-  const idx = Math.max(1, i.traject_stap) - 1;
-  const naam = t.stappenNamen[Math.min(idx, t.stappenNamen.length-1)] || t.stappenNamen[t.stappenNamen.length-1];
-  return t.kort+' — '+naam+' ('+i.traject_stap+'/'+TRAJECT_MAXSTAP[i.traject]+')';
-}
-function bedragLabel(traject){
-  if(traject==='verhaal_derden') return 'Geschat schadebedrag / offerte (€)';
-  if(traject==='indienen_verzekeraar') return 'Bedrag factuur/uren (€)';
-  return null;
-}
-function referentieLabel(traject){
-  if(traject==='verhaal_derden') return 'Offerte-/schattingreferentie';
-  if(traject==='indienen_verzekeraar') return 'Factuurreferentie';
-  return null;
-}
 function canonBedrijven(){
   // gedeelde bedrijvenlijst uit de bouwplanning-app (tabel rp_bedrijf) — tap-chips
   return (S.data && S.data.bedrijven || []).map(b=>b.naam);
@@ -175,14 +169,56 @@ function isAfbeelding(naam){
 function fotoThumbs(i){
   const namen = fotoLijst(i);
   if(!namen.length) return '<div class="foto-ref">📎 geen foto-referentie</div>';
-  return '<div class="foto-thumbs">'+namen.map(n=>{
+  return '<div class="foto-thumbs">'+namen.map((n,idx)=>{
     const url = FOTO_BASE+encodeURIComponent(n);
-    if(isAfbeelding(n)) return '<a href="'+url+'" target="_blank" rel="noopener" title="'+esc(n)+'"><img src="'+url+'" loading="lazy"></a>';
-    return '<a class="vid-chip" href="'+url+'" target="_blank" rel="noopener">🎬 '+esc(n)+'</a>';
+    if(isAfbeelding(n)) return '<a href="'+url+'" data-lightbox="'+i.id+'" data-idx="'+idx+'" title="'+esc(n)+'"><img src="'+url+'" loading="lazy"></a>';
+    return '<a class="vid-chip" href="'+url+'" data-lightbox="'+i.id+'" data-idx="'+idx+'">🎬 '+esc(n)+'</a>';
   }).join('')+'</div>';
 }
+function lbMediaHtml(naam){
+  const url = FOTO_BASE+encodeURIComponent(naam);
+  if(isAfbeelding(naam)) return '<img src="'+url+'" alt="'+esc(naam)+'">';
+  return '<video src="'+url+'" controls autoplay></video>';
+}
+const LB = { items:[], idx:0 };
+function renderLightbox(){
+  const stage=document.getElementById('lb-stage');
+  const counter=document.getElementById('lb-counter');
+  const prev=document.getElementById('lb-prev');
+  const next=document.getElementById('lb-next');
+  if(!LB.items.length){ stage.innerHTML=''; return; }
+  stage.innerHTML = lbMediaHtml(LB.items[LB.idx]);
+  counter.textContent = (LB.idx+1)+' / '+LB.items.length;
+  const meer = LB.items.length>1;
+  prev.style.display = meer?'flex':'none';
+  next.style.display = meer?'flex':'none';
+}
+function openLightbox(items, idx){
+  LB.items = items; LB.idx = idx||0;
+  document.getElementById('lightbox').classList.add('open');
+  renderLightbox();
+}
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lb-stage').innerHTML='';
+  LB.items=[]; LB.idx=0;
+}
+function lbPrev(){ if(!LB.items.length) return; LB.idx=(LB.idx-1+LB.items.length)%LB.items.length; renderLightbox(); }
+function lbNext(){ if(!LB.items.length) return; LB.idx=(LB.idx+1)%LB.items.length; renderLightbox(); }
+function initLightbox(){
+  document.getElementById('lb-close').onclick=closeLightbox;
+  document.getElementById('lb-prev').onclick=lbPrev;
+  document.getElementById('lb-next').onclick=lbNext;
+  document.getElementById('lightbox').onclick=(e)=>{ if(e.target.id==='lightbox') closeLightbox(); };
+  document.addEventListener('keydown',(e)=>{
+    if(!document.getElementById('lightbox').classList.contains('open')) return;
+    if(e.key==='Escape') closeLightbox();
+    else if(e.key==='ArrowLeft') lbPrev();
+    else if(e.key==='ArrowRight') lbNext();
+  });
+}
 
-const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterCat:'', filterTraject:'', toonVervallen:false, zoek:'',
+const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterCat:'', filterStatus:'', toonGereed:false, zoek:'',
   code:localStorage.getItem('si_code')||'', wie:localStorage.getItem('si_wie')||'' };
 
 async function api(body){
@@ -202,10 +238,11 @@ function toast(t){ const el=document.getElementById('toast'); el.textContent=t; 
 function esc(t){ return String(t==null?'':t).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
 function fmtD(d){ if(!d) return '—'; const p=String(d).slice(0,10).split('-'); return p[2]+'-'+p[1]+'-'+p[0]; }
 
-const TABS=[['overzicht','Overzicht'],['items','Items'],['logboek','Logboek']];
+const TABS=[['overzicht','Overzicht'],['items','Items'],['perbedrijf','Per bedrijf'],['logboek','Logboek']];
 function render(){
   document.getElementById('tb-wie').textContent=S.wie;
   renderBedrijvenDatalist();
+  renderSchadecategorieDatalist();
   const tabs=document.getElementById('tabs');
   tabs.innerHTML=TABS.map(([k,t])=>'<button data-v="'+k+'" class="'+(S.view===k?'actief':'')+'">'+t+'</button>').join('');
   tabs.querySelectorAll('button').forEach(b=>b.onclick=()=>{S.view=b.dataset.v;render();window.scrollTo(0,0);});
@@ -213,6 +250,7 @@ function render(){
   if(!S.data){ app.innerHTML='<div class="leeg">Laden…</div>'; return; }
   if(S.view==='overzicht') rOverzicht(app);
   else if(S.view==='items') rItems(app);
+  else if(S.view==='perbedrijf') rPerBedrijf(app);
   else rLogboek(app);
 }
 
@@ -221,29 +259,28 @@ function renderBedrijvenDatalist(){
   if(!dl){ dl=document.createElement('datalist'); dl.id='bedrijven-lijst'; document.body.appendChild(dl); }
   dl.innerHTML = alleBedrijven().map(b=>'<option value="'+esc(b)+'">').join('');
 }
+function renderSchadecategorieDatalist(){
+  let dl = document.getElementById('schadecategorie-lijst');
+  if(!dl){ dl=document.createElement('datalist'); dl.id='schadecategorie-lijst'; document.body.appendChild(dl); }
+  dl.innerHTML = (S.data && S.data.schadecategorieen || []).map(c=>'<option value="'+esc(c.naam)+'">').join('');
+}
 function rOverzicht(app){
   const items=S.data.items.filter(i=>i.categorie!=='steun');
   const totaal=items.length;
-  const nogCat = items.filter(i=>!i.traject).length;
-  const regulier = items.filter(i=>i.traject==='regulier').length;
-  const alVerwerkt = items.filter(i=>i.traject==='al_verwerkt_betaald').length;
-  const verhaal = items.filter(i=>i.traject==='verhaal_derden');
-  const indienen = items.filter(i=>i.traject==='indienen_verzekeraar');
-  const verhaalKlaar = verhaal.filter(i=>i.traject_stap>=3).length;
-  const indienenKlaar = indienen.filter(i=>i.traject_stap>=3).length;
+  const open = items.filter(i=>!i.gereed).length;
+  const zonderBedrijf = items.filter(i=>!i.gereed && !i.uitgevoerd_door).length;
+  const verhaal = items.filter(i=>i.verhaal_op_derden && !i.gereed).length;
+  const gereed = items.filter(i=>i.gereed).length;
   let h='<div class="kpis">';
   h+='<div class="kpi"><div class="n">'+totaal+'</div><div class="l">Schade-items totaal</div></div>';
-  h+='<div class="kpi warn"><div class="n">'+nogCat+'</div><div class="l">Nog te categoriseren</div></div>';
-  h+='<div class="kpi"><div class="n">'+regulier+'</div><div class="l">Regulier (vervallen)</div></div>';
-  h+='<div class="kpi"><div class="n">'+alVerwerkt+'</div><div class="l">Al verwerkt &amp; betaald (regulier)</div></div>';
-  h+='<div class="kpi"><div class="n">'+verhaal.length+'</div><div class="l">Verhaal op derden ('+verhaalKlaar+' afgerond)</div></div>';
-  h+='<div class="kpi"><div class="n">'+indienen.length+'</div><div class="l">Indienen bij verzekeraar ('+indienenKlaar+' afgerond)</div></div>';
+  h+='<div class="kpi warn"><div class="n">'+open+'</div><div class="l">Nog open</div></div>';
+  h+='<div class="kpi warn"><div class="n">'+zonderBedrijf+'</div><div class="l">Nog geen bedrijf gekoppeld</div></div>';
+  h+='<div class="kpi"><div class="n">'+verhaal+'</div><div class="l">Verhaal op derden (open)</div></div>';
+  h+='<div class="kpi"><div class="n">'+gereed+'</div><div class="l">Gereed</div></div>';
   h+='</div>';
   h+='<div class="kaart"><h2>Status voortgang</h2>';
-  h+='<div class="stil">'+nogCat+' van de '+totaal+' items zijn nog niet gecategoriseerd (Regulier / Al verwerkt &amp; betaald / Verhaal op derden / Indienen bij verzekeraar). '
-    +verhaalKlaar+'/'+verhaal.length+' verhaal-op-derden-items zijn doorgegeven aan de verzekeraar, '
-    +indienenKlaar+'/'+indienen.length+' indienen-items zijn daadwerkelijk ingediend.</div>';
-  h+='<div style="margin-top:10px"><button class="knop klein" id="naar-items">Naar items ›</button></div>';
+  h+='<div class="stil">'+open+' van de '+totaal+' items staan nog open. '+zonderBedrijf+' daarvan heeft nog geen bedrijf gekoppeld.</div>';
+  h+='<div style="margin-top:10px"><button class="knop klein" id="naar-items">Naar items ›</button> <button class="knop klein licht" id="naar-perbedrijf">Per bedrijf ›</button></div>';
   h+='</div>';
   h+='<div class="kaart"><h2>Per locatie</h2>';
   const perLoc={};
@@ -253,13 +290,16 @@ function rOverzicht(app){
   h+='</div>';
   app.innerHTML=h;
   document.getElementById('naar-items').onclick=()=>{S.view='items';render();window.scrollTo(0,0);};
+  document.getElementById('naar-perbedrijf').onclick=()=>{S.view='perbedrijf';render();window.scrollTo(0,0);};
 }
 
 function matchFilter(i){
   if(S.filterCat && i.categorie!==S.filterCat) return false;
-  if(!S.toonVervallen && (i.traject==='regulier'||i.traject==='al_verwerkt_betaald')) return false;
-  if(S.filterTraject==='nog' && i.traject) return false;
-  if(S.filterTraject && S.filterTraject!=='nog' && i.traject!==S.filterTraject) return false;
+  if(!S.toonGereed && i.gereed) return false;
+  if(S.filterStatus==='open' && i.gereed) return false;
+  if(S.filterStatus==='gereed' && !i.gereed) return false;
+  if(S.filterStatus==='verhaal' && !i.verhaal_op_derden) return false;
+  if(S.filterStatus==='zonder_bedrijf' && (i.uitgevoerd_door||i.gereed)) return false;
   if(S.zoek){
     const z=S.zoek.toLowerCase();
     if(!(String(i.schade_id).toLowerCase().includes(z) || String(i.locatie||'').toLowerCase().includes(z) || String(i.omschrijving||'').toLowerCase().includes(z))) return false;
@@ -275,8 +315,8 @@ function rItems(app){
   h+='<div class="filters">'
     +'<input type="text" id="f-zoek" placeholder="zoeken…" value="'+esc(S.zoek)+'">'
     +'<select id="f-cat"><option value="">alle categorieën</option><option value="schade">schade</option><option value="gewas">gewas</option><option value="steun">steun/overig</option></select>'
-    +'<select id="f-traject"><option value="">alle trajecten</option><option value="nog">nog te categoriseren</option><option value="regulier">regulier</option><option value="verhaal_derden">verhaal op derden</option><option value="indienen_verzekeraar">indienen bij verzekeraar</option><option value="al_verwerkt_betaald">al verwerkt &amp; betaald</option></select>'
-    +'<label class="vervallen-toggle"><input type="checkbox" id="f-vervallen"> toon afgehandeld (regulier / al verwerkt)</label>'
+    +'<select id="f-status"><option value="">alle statussen</option><option value="open">nog open</option><option value="zonder_bedrijf">nog geen bedrijf</option><option value="verhaal">verhaal op derden</option><option value="gereed">gereed</option></select>'
+    +'<label class="vervallen-toggle"><input type="checkbox" id="f-vervallen"> toon gereed-items</label>'
     +'</div>';
   const items=S.data.items.filter(matchFilter).sort((a,b)=>String(a.datum||'').localeCompare(String(b.datum||''))||String(a.schade_id).localeCompare(b.schade_id));
   h+='<div class="stil" style="margin-bottom:6px">'+items.length+' item(en)</div>';
@@ -285,8 +325,8 @@ function rItems(app){
   document.getElementById('f-zoek').oninput=e=>{S.zoek=e.target.value;renderItemsOnly();};
   document.getElementById('f-zoek').value=S.zoek;
   document.getElementById('f-cat').value=S.filterCat; document.getElementById('f-cat').onchange=e=>{S.filterCat=e.target.value;render();};
-  document.getElementById('f-traject').value=S.filterTraject; document.getElementById('f-traject').onchange=e=>{S.filterTraject=e.target.value;render();};
-  document.getElementById('f-vervallen').checked=S.toonVervallen; document.getElementById('f-vervallen').onchange=e=>{S.toonVervallen=e.target.checked;render();};
+  document.getElementById('f-status').value=S.filterStatus; document.getElementById('f-status').onchange=e=>{S.filterStatus=e.target.value;render();};
+  document.getElementById('f-vervallen').checked=S.toonGereed; document.getElementById('f-vervallen').onchange=e=>{S.toonGereed=e.target.checked;render();};
   document.getElementById('ni-knop').onclick=()=>{
     const loc=document.getElementById('ni-locatie').value.trim();
     const oms=document.getElementById('ni-oms').value.trim();
@@ -296,78 +336,41 @@ function rItems(app){
   koppelItems(app);
 }
 function renderItemsOnly(){ rItems(document.getElementById('app')); }
-function trajectUI(i){
-  if(!i.traject){
-    return '<div class="traject-kies">'
-      +'<label class="veld">Categorie kiezen — bepaalt het vervolgtraject (max 3 stappen totaal)</label>'
-      +'<div class="traject-knoppen">'
-      +'<button type="button" class="tknop regulier" data-kies-traject="regulier" data-id="'+i.id+'">Regulier gerepareerd<span class="tsub">vervalt direct, geen verdere actie</span></button>'
-      +'<button type="button" class="tknop verhaal" data-kies-traject="verhaal_derden" data-id="'+i.id+'">Verhaalbaar op derden<span class="tsub">schadebedrag/offerte nodig, verzekeraar verhaalt</span></button>'
-      +'<button type="button" class="tknop indienen" data-kies-traject="indienen_verzekeraar" data-id="'+i.id+'">Indienen bij verzekeraar<span class="tsub">factuur- of urenonderbouwing nodig</span></button>'
-      +'</div>'
-      +'<button type="button" class="tknop-mini" data-kies-traject="al_verwerkt_betaald" data-id="'+i.id+'">✓ Al verwerkt &amp; betaald (regulier) — geen onderbouwing nodig</button>'
-      +'</div>';
-  }
-  const t = TRAJECTEN[i.traject];
-  const max = TRAJECT_MAXSTAP[i.traject];
-  const pills = '<div class="pills" data-traject-pills="'+i.id+'">'
-    + t.stappenNamen.map((naam,idx)=>{
-        const stapNr = idx+1;
-        const cls = stapNr===i.traject_stap ? 'actief' : (stapNr<i.traject_stap?'klaar':'');
-        return '<button type="button" class="pill '+cls+'" data-traject-stap="'+stapNr+'" data-id="'+i.id+'">'+esc(naam)+'</button>';
-      }).join('')
-    + '</div>';
-  return '<div class="traject-actief">'
-    +'<span class="traject-badge '+i.traject+'">'+esc(t.naam)+'</span>'
-    +pills
-    +'<button type="button" class="wijzig-cat" data-wijzig-traject="'+i.id+'">✕ wijzig categorie</button>'
-    +(i.traject!=='al_verwerkt_betaald' ? '<button type="button" class="override-cat" data-kies-traject="al_verwerkt_betaald" data-id="'+i.id+'">✓ al verwerkt &amp; betaald (regulier) — geen onderbouwing nodig</button>' : '')
-    +'</div>';
+function statusBadge(i){
+  if(i.gereed) return '<span class="stadium status-gereed">✓ Gereed</span>';
+  if(i.verhaal_op_derden) return '<span class="stadium status-verhaal">Verhaal op derden'+(i.uitgevoerd_door?': '+esc(i.uitgevoerd_door):'')+'</span>';
+  return '<span class="stadium '+(i.uitgevoerd_door?'':'nogcat')+'">'+(i.uitgevoerd_door?esc(i.uitgevoerd_door):'Nog geen bedrijf')+'</span>';
 }
 function itemRow(i){
   const catChip='<span class="chip '+i.categorie+'">'+esc(i.categorie)+'</span>';
-  const max = i.traject ? TRAJECT_MAXSTAP[i.traject] : null;
-  const volgendeNaam = (i.traject && i.traject_stap<max) ? TRAJECTEN[i.traject].stappenNamen[i.traject_stap] : null;
-  const bLabel = bedragLabel(i.traject);
-  const rLabel = referentieLabel(i.traject);
   let d='';
   if(S.open===i.id){
-    const meer = S.meerOpen===i.id;
     d='<div class="detail open">'
       +'<div class="grid2">'
       +veld('Locatie','locatie',i.locatie,'text')
       +veld('Categorie','categorie',i.categorie,'select',['schade','gewas','steun'])
       +'</div>'
+      +veldSchadecategorie(i.schadecategorie,i.id)
       +veldFull('Omschrijving / duiding','omschrijving',i.omschrijving,'textarea')
       +fotoThumbs(i)
       +uploadRij(i)
       +veldFull('Opmerkingen','opmerkingen',i.opmerkingen,'textarea')
-      +'<label class="veld" style="margin-top:10px">Traject</label>'
-      +trajectUI(i)
-      +(bLabel ? '<div class="grid2" style="margin-top:8px">'
-          +veld(bLabel,'vergoed_bedrag',i.vergoed_bedrag,'number')
-          +veld(rLabel,'factuur_referentie',i.factuur_referentie,'text')
-        +'</div>' : '')
-      +'<button type="button" class="knop licht klein" data-toggle-meer="'+i.id+'" style="margin-top:10px">'+(meer?'Minder details ▴':'Meer details — polis, bedrijf, status (optioneel) ▾')+'</button>'
-      +(meer ? (
-        '<div class="grid2" style="margin-top:6px">'
-        +veld('Polis / dekking','polis',i.polis,'select',['Opstalpolis (gebouw/glas/dek)','Gewaspolis (bij Edward/verzekeraar te bevestigen)','Opstal-/inventarispolis (voertuig/materieel) — te bevestigen',"Opstalpolis — mogelijk budget 'Doeken'",'Nog te bepalen'])
-        +veld('Status reparatie','status_reparatie',i.status_reparatie,'text')
-        +'</div>'
-        +veldBedrijf(i.uitgevoerd_door,i.id)
-      ) : '')
-      +'<div class="stil" style="margin-top:8px">Laatst gewijzigd door: '+esc(i.laatst_gewijzigd_door||'—')+(i.updated_at?(' · '+String(i.updated_at).slice(0,16).replace('T',' ')):'')+'</div>'
+      +veldBedrijf(i.uitgevoerd_door,i.id,i.verhaal_op_derden)
+      +'<label class="veld" style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" data-veld="verhaal_op_derden" '+(i.verhaal_op_derden?'checked':'')+' style="width:auto"> Verhaalbaar op derden (schade veroorzaakt door een derde partij — bedrijf hierboven is dan op wie te verhalen)</label>'
+      +'<label class="veld" style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;font-size:14px"><input type="checkbox" data-veld="gereed" '+(i.gereed?'checked':'')+' style="width:auto;transform:scale(1.3)"> <b>Gereed / afgehandeld</b></label>'
+      +'<div class="stil" style="margin-top:8px">Datum: '+fmtD(i.datum)+' · Laatst gewijzigd door: '+esc(i.laatst_gewijzigd_door||'—')+(i.updated_at?(' · '+String(i.updated_at).slice(0,16).replace('T',' ')):'')+'</div>'
       +'<div class="opslaan-rij"><button class="knop licht klein" data-sluit="1">Sluiten</button><button class="knop klein" data-opslaan="'+i.id+'">Opslaan</button></div>'
       +'</div>';
   }
   return '<div class="item" data-id="'+i.id+'">'
     +'<div class="kop" data-open="'+i.id+'">'
     +'<span class="id">'+esc(i.schade_id)+'</span>'
-    +catChip
-    +'<span class="oms">'+esc(i.locatie||i.omschrijving||'')+'</span>'
-    +'<span class="stadium '+(i.traject?'':'nogcat')+'">'+esc(trajectStapLabel(i))+'</span>'
-    +(volgendeNaam?'<button type="button" class="knop klein volgende" data-snel="'+i.id+'" title="Zet in 1 tik door naar de volgende stap">'+esc(volgendeNaam)+' →</button>':'')
     +'<span class="datum">'+fmtD(i.datum)+'</span>'
+    +catChip
+    +(i.schadecategorie?'<span class="chip cat-badge">'+esc(i.schadecategorie)+'</span>':'')
+    +'<span class="oms">'+esc(i.locatie||i.omschrijving||'')+'</span>'
+    +statusBadge(i)
+    +'<button type="button" class="knop klein gereed-toggle'+(i.gereed?' aan':'')+'" data-gereed-toggle="'+i.id+'">'+(i.gereed?'✓ Gereed':'Gereed?')+'</button>'
     +'</div>'+d+'</div>';
 }
 function uploadRij(i){
@@ -385,18 +388,34 @@ function veld(label,name,val,type,opts){
   }
   return '<div><label class="veld">'+esc(label)+'</label><input type="'+type+'" data-veld="'+name+'" value="'+esc(val==null?'':val)+'"></div>';
 }
-function veldBedrijf(val,itemId){
+function veldBedrijf(val,itemId,verhaal){
   const huidig = String(val||'').trim().toLowerCase();
   const bedrijven = canonBedrijven();
+  const label = verhaal ? 'Bedrijf — op wie te verhalen' : 'Bedrijf — voert de reparatie uit';
   const chips = bedrijven.length
     ? '<div class="bchips" data-bchips="'+itemId+'">'+bedrijven.map(b=>'<button type="button" class="bchip'+(b.trim().toLowerCase()===huidig?' gekozen':'')+'" data-vulbedrijf="'+esc(b)+'">'+esc(b)+'</button>').join('')+'</div>'
     : '';
-  return '<div><label class="veld">Bedrijf (repareert / factuurbron) — tik om te kiezen, of typ vrij</label>'
+  return '<div><label class="veld">'+label+' — tik om te kiezen, of typ vrij</label>'
     +'<input type="text" data-veld="uitgevoerd_door" list="bedrijven-lijst" placeholder="bv. KZ, Huisman, Luiten…" value="'+esc(val==null?'':val)+'">'
     +chips
     +'<div class="bedrijf-nieuw">'
     +'<input type="text" data-nieuw-bedrijf="'+itemId+'" placeholder="+ nieuw bedrijf toevoegen…">'
     +'<button type="button" class="knop licht klein" data-bedrijf-toevoegen="'+itemId+'">Toevoegen</button>'
+    +'</div>'
+    +'</div>';
+}
+function veldSchadecategorie(val,itemId){
+  const huidig = String(val||'').trim().toLowerCase();
+  const cats = (S.data && S.data.schadecategorieen || []).map(c=>c.naam);
+  const chips = cats.length
+    ? '<div class="bchips" data-catchips="'+itemId+'">'+cats.map(c=>'<button type="button" class="bchip'+(c.trim().toLowerCase()===huidig?' gekozen':'')+'" data-vulcategorie="'+esc(c)+'">'+esc(c)+'</button>').join('')+'</div>'
+    : '';
+  return '<div><label class="veld">Schadecategorie — tik om te kiezen, of typ vrij</label>'
+    +'<input type="text" data-veld="schadecategorie" list="schadecategorie-lijst" value="'+esc(val==null?'':val)+'">'
+    +chips
+    +'<div class="bedrijf-nieuw">'
+    +'<input type="text" data-nieuw-categorie="'+itemId+'" placeholder="+ nieuwe categorie toevoegen…">'
+    +'<button type="button" class="knop licht klein" data-categorie-toevoegen="'+itemId+'">Toevoegen</button>'
     +'</div>'
     +'</div>';
 }
@@ -420,13 +439,15 @@ function koppelItems(root){
     render();
   });
   root.querySelectorAll('[data-sluit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();S.open=null;S.meerOpen=null;render();});
-  root.querySelectorAll('[data-toggle-meer]').forEach(b=>b.onclick=(e)=>{
-    e.stopPropagation();
-    const id=+b.dataset.toggleMeer;
-    S.meerOpen = S.meerOpen===id ? null : id;
-    render();
-  });
   root.querySelectorAll('[data-fotoupload]').forEach(inp=>inp.onclick=(e)=>e.stopPropagation());
+  root.querySelectorAll('[data-lightbox]').forEach(a=>a.onclick=(e)=>{
+    e.preventDefault(); e.stopPropagation();
+    const itemId=+a.dataset.lightbox;
+    const idx=+a.dataset.idx;
+    const i=S.data.items.find(x=>x.id===itemId);
+    if(!i) return;
+    openLightbox(fotoLijst(i), idx);
+  });
   root.querySelectorAll('[data-fotoupload]').forEach(inp=>inp.onchange=async(e)=>{
     e.stopPropagation();
     const itemId=+inp.dataset.fotoupload;
@@ -455,8 +476,7 @@ function koppelItems(root){
     const item=document.querySelector('.item[data-id="'+id+'"]');
     const fields={};
     item.querySelectorAll('[data-veld]').forEach(inp=>{
-      let v=inp.value;
-      if(inp.dataset.veld==='vergoed_bedrag') v = v===''? null : Number(v);
+      const v = inp.type==='checkbox' ? inp.checked : inp.value;
       fields[inp.dataset.veld]=v;
     });
     const i=S.data.items.find(x=>x.id===id);
@@ -468,7 +488,8 @@ function koppelItems(root){
     const detail=chip.closest('.detail');
     const inp=detail.querySelector('[data-veld="uitgevoerd_door"]');
     if(inp) inp.value=naam;
-    detail.querySelectorAll('.bchip').forEach(c=>c.classList.toggle('gekozen', c===chip));
+    const groep=chip.closest('[data-bchips]');
+    if(groep) groep.querySelectorAll('.bchip').forEach(c=>c.classList.toggle('gekozen', c===chip));
   });
   root.querySelectorAll('[data-bedrijf-toevoegen]').forEach(btn=>btn.onclick=async(e)=>{
     e.stopPropagation();
@@ -481,36 +502,79 @@ function koppelItems(root){
     const bedrijfInp=item && item.querySelector('[data-veld="uitgevoerd_door"]');
     if(bedrijfInp) bedrijfInp.value=naam;
   });
-  root.querySelectorAll('[data-snel]').forEach(b=>b.onclick=(e)=>{
+  root.querySelectorAll('[data-vulcategorie]').forEach(chip=>chip.onclick=(e)=>{
     e.stopPropagation();
-    const id=+b.dataset.snel;
-    const i=S.data.items.find(x=>x.id===id);
-    if(!i.traject) return;
-    const n=Math.min(i.traject_stap+1, TRAJECT_MAXSTAP[i.traject]);
-    doe({action:'item_update', id, fields:{traject_stap:n}}, i.schade_id+': '+TRAJECTEN[i.traject].kort+' → stap '+n+' ('+S.wie+')');
+    const naam=chip.dataset.vulcategorie;
+    const detail=chip.closest('.detail');
+    const inp=detail.querySelector('[data-veld="schadecategorie"]');
+    if(inp) inp.value=naam;
+    const groep=chip.closest('[data-catchips]');
+    if(groep) groep.querySelectorAll('.bchip').forEach(c=>c.classList.toggle('gekozen', c===chip));
   });
-  root.querySelectorAll('[data-kies-traject]').forEach(b=>b.onclick=(e)=>{
+  root.querySelectorAll('[data-categorie-toevoegen]').forEach(btn=>btn.onclick=async(e)=>{
     e.stopPropagation();
-    const id=+b.dataset.id;
-    const traject=b.dataset.kiesTraject;
-    const i=S.data.items.find(x=>x.id===id);
-    if(i.traject && i.traject!==traject && !confirm(i.schade_id+' stond al op "'+TRAJECTEN[i.traject].kort+'". Omzetten naar "'+TRAJECTEN[traject].kort+'"?')) return;
-    const stap = EEN_TIK.has(traject) ? TRAJECT_MAXSTAP[traject] : 1;
-    doe({action:'item_update', id, fields:{traject, traject_stap:stap}}, i.schade_id+': categorie → '+TRAJECTEN[traject].kort+' ('+S.wie+')');
+    const itemId=+btn.dataset.categorieToevoegen;
+    const inp=document.querySelector('[data-nieuw-categorie="'+itemId+'"]');
+    const naam=(inp&&inp.value||'').trim();
+    if(!naam){ toast('Vul een categorienaam in'); return; }
+    await doe({action:'schadecategorie_add', naam}, 'Nieuwe schadecategorie toegevoegd: '+naam);
+    const item=document.querySelector('.item[data-id="'+itemId+'"]');
+    const catInp=item && item.querySelector('[data-veld="schadecategorie"]');
+    if(catInp) catInp.value=naam;
   });
-  root.querySelectorAll('[data-traject-stap]').forEach(b=>b.onclick=(e)=>{
+  root.querySelectorAll('[data-gereed-toggle]').forEach(b=>b.onclick=(e)=>{
     e.stopPropagation();
-    const id=+b.dataset.id;
-    const n=+b.dataset.trajectStap;
+    const id=+b.dataset.gereedToggle;
     const i=S.data.items.find(x=>x.id===id);
-    if(!i.traject) return;
-    doe({action:'item_update', id, fields:{traject_stap:n}}, i.schade_id+': '+TRAJECTEN[i.traject].kort+' → stap '+n+' ('+S.wie+')');
+    doe({action:'item_update', id, fields:{gereed: !i.gereed}}, i.schade_id+': '+(!i.gereed?'gereed gemeld':'heropend')+' door '+S.wie);
   });
-  root.querySelectorAll('[data-wijzig-traject]').forEach(b=>b.onclick=(e)=>{
+}
+
+function rPerBedrijf(app){
+  const items=S.data.items.filter(i=>i.categorie!=='steun');
+  const groepen={};
+  items.forEach(i=>{
+    const naam=(i.uitgevoerd_door||'').trim() || 'Nog geen bedrijf toegewezen';
+    if(!groepen[naam]) groepen[naam]={open:[],gereed:0};
+    if(i.gereed) groepen[naam].gereed++;
+    else groepen[naam].open.push(i);
+  });
+  const namen=Object.keys(groepen).sort((a,b)=>{
+    if(a==='Nog geen bedrijf toegewezen') return -1;
+    if(b==='Nog geen bedrijf toegewezen') return 1;
+    return groepen[b].open.length-groepen[a].open.length || a.localeCompare(b);
+  });
+  let h='<div class="stil" style="margin-bottom:8px">Openstaande taken per bedrijf — tik op een item om te openen.</div>';
+  h+=namen.map(naam=>{
+    const g=groepen[naam];
+    let hh='<div class="kaart"><h2>'+esc(naam)+' — '+g.open.length+' open'+(g.gereed?' · '+g.gereed+' gereed':'')+'</h2>';
+    if(!g.open.length){ hh+='<div class="leeg">Niets openstaand.</div>'; }
+    else{
+      hh+=g.open.map(i=>'<div class="pb-item" data-openitem="'+i.id+'">'
+        +'<span class="id">'+esc(i.schade_id)+'</span>'
+        +(i.schadecategorie?'<span class="chip cat-badge">'+esc(i.schadecategorie)+'</span>':'')
+        +'<span class="oms">'+esc(i.locatie||i.omschrijving||'')+'</span>'
+        +(i.verhaal_op_derden?'<span class="stadium status-verhaal">Verhaal op derden</span>':'')
+        +'<button type="button" class="knop klein gereed-toggle" data-gereed-toggle="'+i.id+'">Gereed?</button>'
+        +'</div>').join('');
+    }
+    hh+='</div>';
+    return hh;
+  }).join('');
+  app.innerHTML=h;
+  koppelPerBedrijf(app);
+}
+function koppelPerBedrijf(root){
+  root.querySelectorAll('[data-openitem]').forEach(el=>el.onclick=(e)=>{
+    if(e.target.closest('[data-gereed-toggle]')) return;
+    const id=+el.dataset.openitem;
+    S.view='items'; S.open=id; render(); window.scrollTo(0,0);
+  });
+  root.querySelectorAll('[data-gereed-toggle]').forEach(b=>b.onclick=(e)=>{
     e.stopPropagation();
-    const id=+b.dataset.wijzigTraject;
+    const id=+b.dataset.gereedToggle;
     const i=S.data.items.find(x=>x.id===id);
-    doe({action:'item_update', id, fields:{traject:null, traject_stap:0}}, i.schade_id+': categorie gewijzigd/gereset door '+S.wie);
+    doe({action:'item_update', id, fields:{gereed: !i.gereed}}, i.schade_id+': gereed gemeld door '+S.wie);
   });
 }
 
@@ -540,6 +604,7 @@ function toonLogin(){
 }
 setInterval(async()=>{ if(S.data&&document.visibilityState==='visible'){ try{ await laad(); render(); }catch(e){} } }, 90000);
 document.addEventListener('visibilitychange',async()=>{ if(document.visibilityState==='visible'&&S.data){ try{ await laad(); render(); }catch(e){} } });
+initLightbox();
 start();
 </script>
 </body>
