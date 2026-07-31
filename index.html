@@ -1635,7 +1635,7 @@ function kopieerWanneer(bronAfd, doelen){
     keuzes.push(['geen','alleen werkdagen, geen datums']);
     let uitleg='';
     if(modus==='ladder') uitleg=namen.map((n,i)=>'• '+esc(n)+' — '+wkn(i+1)+' later').join('<br>');
-    else if(modus==='geen') uitleg='Alleen werkdagen, volgorde, bedrijven en n.v.t. gaan mee. Elke afdeling houdt haar eigen datums.';
+    else if(modus==='geen') uitleg='Alleen werkdagen, volgorde, bedrijven en n.v.t. gaan mee. Elke afdeling houdt haar eigen datums en vrije dagen.';
     else uitleg=namen.map(n=>'• '+esc(n)).join('<br>')+'<br><span class="stil">'+(modus==='0'?'dezelfde datums als '+esc(afdNaam(bronAfd)):wkn(+modus)+' later dan '+esc(afdNaam(bronAfd)))+'</span>';
     sh.innerHTML='<div class="sheetkaart"><div class="sheettitel">&#10697; '+esc(afdNaam(bronAfd))+' kopiëren naar '+doelen.length+' afdeling(en)</div>'
       +'<div class="stil"><b>Wanneer begint dit werk daar?</b></div>'
@@ -1683,7 +1683,14 @@ function kopieerRegels(bronAfd, bronActs, doelAfd, weken){
     const r={naam:b.naam,bedrijf_id:bid};
     if(b.duur!=null) r.duur=b.duur;
     if(b.status==='nvt') r.status='nvt';
-    if(weken!=null) r.handmatige_start=b.handmatige_start?iso(schuif(pd(b.handmatige_start),weken*7)):null;
+    if(weken!=null){
+      const mee=lijst=>(lijst||[]).map(d=>iso(schuif(pd(d),weken*7)));
+      r.handmatige_start=b.handmatige_start?iso(schuif(pd(b.handmatige_start),weken*7)):null;
+      // Vrije dagen en losse zondagen horen bij de datums: zonder deze loopt de doelafdeling
+      // net zoveel dagen vóór als de bron aan vrije dagen heeft.
+      r.skipdagen=mee(b.skipdagen);
+      r.plusdagen=mee(b.plusdagen);
+    }
     regels.push(r);
   }
   return regels;
@@ -1718,6 +1725,7 @@ function kopieerDuren(afdId){
     } else {
       const bronAfd=S.data.afdelingen.find(z=>z.id===bronId);
       const vast=S.data.activiteiten.filter(z=>z.afdeling_id===bronId&&z.handmatige_start).length;
+      const vrij=S.data.activiteiten.filter(z=>z.afdeling_id===bronId).reduce((n,z)=>n+((z.skipdagen||[]).length),0);
       x+='<div class="stil">Opzet van <b>'+esc(afdNaam(bronAfd))+'</b> ('+matchTelling(bronAfd)+' activiteiten) komt naar deze afdeling. Werkdagen, volgorde, bedrijven en n.v.t. gaan mee; de voortgang (bezig/klaar) blijft van deze afdeling zelf.</div>'
         +'<div class="stil" style="margin-top:6px"><b>Wanneer begint dit werk hier?</b></div>'
         +'<div class="keuze">'+[0,1,2,3,4].map(w=>'<button data-kw="'+w+'" class="'+(kdWeken===w?'aan':'')+'">'
@@ -1726,8 +1734,8 @@ function kopieerDuren(afdId){
         +(kdWeken==null
           ?'<div class="sheetrij"><label>Start</label><input type="date" id="kd-start" value="'+(doelAfd.startdatum?doelAfd.startdatum.slice(0,10):'')+'"></div>'
             +'<div class="stil">De app rekent de hele reeks vanaf deze datum door; 📌 vaste datums uit de bron gaan dan niet mee.</div>'
-          :'<div class="stil">'+(vast?'De '+vast+' 📌 vaste datum(s) van '+esc(afdNaam(bronAfd))+' gaan mee'+(kdWeken?', '+wkn(kdWeken)+' later':'')+'.'
-              :'Deze afdeling heeft geen 📌 vaste datums; de reeks rekent door vanaf '+fmt(schuif(pd(bronAfd.startdatum||vandaagISO()),kdWeken*7))+'.')+'</div>')
+          :'<div class="stil">'+(vast?'De '+vast+' 📌 vaste datum(s)'+(vrij?' en '+vrij+' vrije dag(en)':'')+' van '+esc(afdNaam(bronAfd))+' gaan mee'+(kdWeken?', '+wkn(kdWeken)+' later':'')+'.'
+              :(vrij?'De '+vrij+' vrije dag(en) gaan mee'+(kdWeken?', '+wkn(kdWeken)+' later':'')+'. ':'')+'De reeks rekent door vanaf '+fmt(schuif(pd(bronAfd.startdatum||vandaagISO()),kdWeken*7))+'.')+'</div>')
         +'<button class="knop breed" id="kd-ok">✓ Overnemen</button>'
         +'<button class="knop licht breed" id="kd-terug">‹ andere afdeling kiezen</button>'
         +'<button class="knop licht breed" id="kd-sluit">Annuleren</button></div>';
