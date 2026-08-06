@@ -56,6 +56,9 @@ label.veld{display:block;font-size:12px;color:var(--grijs);margin:8px 0 3px}
 .bchips{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
 .bchip{padding:4px 9px;border-radius:12px;font-size:11px;background:#eef1ef;color:var(--groen);border:1px solid var(--lijn)}
 .bchip.gekozen{background:var(--groen);color:#fff;font-weight:600;border-color:var(--groen)}
+.loc-wolk{margin-top:5px;display:flex;flex-direction:column;gap:4px}
+.loc-groep{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.loc-kop{font-size:10.5px;font-weight:700;color:var(--grijs);min-width:38px;letter-spacing:.02em}
 .bedrijf-nieuw{display:flex;gap:6px;margin-top:6px}
 .bedrijf-nieuw input{flex:1}
 .kpi.warn{border-color:#f2a541;background:#fff8ec}
@@ -219,7 +222,7 @@ function initLightbox(){
   });
 }
 
-const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterCat:'', filterStatus:'', filterPolis:'', toonGereed:false, zoek:'',
+const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterStatus:'', filterPolis:'', toonGereed:false, zoek:'',
   code:localStorage.getItem('si_code')||'', wie:localStorage.getItem('si_wie')||'' };
 
 async function api(body){
@@ -297,7 +300,6 @@ function rOverzicht(app){
 }
 
 function matchFilter(i){
-  if(S.filterCat && i.categorie!==S.filterCat) return false;
   if(!S.toonGereed && i.gereed) return false;
   if(S.filterStatus==='open' && (i.gereed || i.uitgevoerd_door)) return false;
   if(S.filterStatus==='gereed' && !i.gereed) return false;
@@ -318,7 +320,6 @@ function rItems(app){
     +'<button class="knop klein" id="ni-knop">Toevoegen</button></div></div>';
   h+='<div class="filters">'
     +'<input type="text" id="f-zoek" placeholder="zoeken…" value="'+esc(S.zoek)+'">'
-    +'<select id="f-cat"><option value="">alle categorieën</option><option value="schade">schade</option><option value="gewas">gewas</option><option value="steun">steun/overig</option></select>'
     +'<select id="f-status"><option value="">alle statussen</option><option value="open">nog open (zonder bedrijf)</option><option value="verhaal">verhaal op derden</option><option value="gereed">gereed</option></select>'
     +'<select id="f-polis"><option value="">alle polissen</option><option value="geen">nog geen polis</option>'+POLIS_OPTIES.map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('')+'</select>'
     +'<label class="vervallen-toggle"><input type="checkbox" id="f-vervallen"> toon gereed-items</label>'
@@ -329,7 +330,6 @@ function rItems(app){
   app.innerHTML=h;
   document.getElementById('f-zoek').oninput=e=>{S.zoek=e.target.value;renderItemsOnly();};
   document.getElementById('f-zoek').value=S.zoek;
-  document.getElementById('f-cat').value=S.filterCat; document.getElementById('f-cat').onchange=e=>{S.filterCat=e.target.value;render();};
   document.getElementById('f-status').value=S.filterStatus; document.getElementById('f-status').onchange=e=>{S.filterStatus=e.target.value;render();};
   document.getElementById('f-polis').value=S.filterPolis; document.getElementById('f-polis').onchange=e=>{S.filterPolis=e.target.value;render();};
   document.getElementById('f-vervallen').checked=S.toonGereed; document.getElementById('f-vervallen').onchange=e=>{S.toonGereed=e.target.checked;render();};
@@ -348,16 +348,14 @@ function statusBadge(i){
   return '<span class="stadium '+(i.uitgevoerd_door?'':'nogcat')+'">'+(i.uitgevoerd_door?esc(i.uitgevoerd_door):'Nog geen bedrijf')+'</span>';
 }
 function itemRow(i){
-  const catChip='<span class="chip '+i.categorie+'">'+esc(i.categorie)+'</span>';
   let d='';
   if(S.open===i.id){
     d='<div class="detail open">'
       +'<div class="grid2">'
-      +veld('Locatie','locatie',i.locatie,'text')
-      +veld('Categorie','categorie',i.categorie,'select',['schade','gewas','steun'])
+      +veldLocatie(i,i.id)
+      +veldPolis(i.polis,i.id)
       +'</div>'
       +veldSchadecategorie(i.schadecategorie,i.id)
-      +veldPolis(i.polis,i.id)
       +veldFull('Omschrijving / duiding','omschrijving',i.omschrijving,'textarea')
       +fotoThumbs(i)
       +uploadRij(i)
@@ -374,7 +372,6 @@ function itemRow(i){
     +'<div class="kop" data-open="'+i.id+'">'
     +'<span class="id">'+esc(i.schade_id)+'</span>'
     +'<span class="datum">'+fmtD(i.datum)+'</span>'
-    +catChip
     +(i.schadecategorie?'<span class="chip cat-badge">'+esc(i.schadecategorie)+'</span>':'')
     +(i.polis?'<span class="chip cat-badge" style="background:#8a5a3b">'+esc(i.polis)+'</span>':'')
     +'<span class="oms">'+esc(i.locatie||i.omschrijving||'')+'</span>'
@@ -440,6 +437,46 @@ function veldSchadecategorie(val,itemId){
     +'<input type="text" data-nieuw-categorie="'+itemId+'" placeholder="+ nieuwe categorie toevoegen…">'
     +'<button type="button" class="knop licht klein" data-categorie-toevoegen="'+itemId+'">Toevoegen</button>'
     +'</div>'
+    +'</div>';
+}
+function afdGroepen(){
+  // afdelingen uit de gedeelde bouwplanning-tabellen, gegroepeerd per locatie
+  const volgorde = ['EW2','EW4','EW5','3T36','3T38','OVERIG'];
+  const groepen = {};
+  (S.data && S.data.afdelingen || []).forEach(a=>{
+    const loc = String(a.loc||'OVERIG');
+    if(!groepen[loc]) groepen[loc] = [];
+    if(!groepen[loc].includes(a.afd)) groepen[loc].push(a.afd);
+  });
+  const namen = Object.keys(groepen).sort((a,b)=>{
+    const ia = volgorde.indexOf(a), ib = volgorde.indexOf(b);
+    return (ia<0?99:ia)-(ib<0?99:ib) || a.localeCompare(b);
+  });
+  namen.forEach(n=>groepen[n].sort((x,y)=>{
+    const nx=parseInt(x,10), ny=parseInt(y,10);
+    if(!isNaN(nx) && !isNaN(ny) && nx!==ny) return nx-ny;
+    if(!isNaN(nx) && isNaN(ny)) return -1;
+    if(isNaN(nx) && !isNaN(ny)) return 1;
+    return String(x).localeCompare(String(y));
+  }));
+  return namen.map(n=>({ loc:n, afdelingen:groepen[n] }));
+}
+function locTekst(loc, afd){
+  const a = String(afd||'');
+  return /^[0-9]/.test(a) ? (loc+' afd '+a) : (loc+' '+a);
+}
+function veldLocatie(i,itemId){
+  const huidigLoc = String(i.locatie_code||'').trim();
+  const huidigAfd = String(i.afdeling_code||'').trim();
+  const wolk = afdGroepen().map(g=>
+    '<div class="loc-groep"><span class="loc-kop">'+esc(g.loc)+'</span>'
+    +g.afdelingen.map(a=>'<button type="button" class="bchip'+((g.loc===huidigLoc && a===huidigAfd)?' gekozen':'')+'" data-vulloc="'+esc(g.loc)+'" data-vulafd="'+esc(a)+'">'+esc(a)+'</button>').join('')
+    +'</div>').join('');
+  return '<div><label class="veld">Locatie - tik de afdeling aan, of typ vrij</label>'
+    +'<input type="text" data-veld="locatie" placeholder="bv. EW4 afd 6" value="'+esc(i.locatie==null?'':i.locatie)+'">'
+    +'<input type="hidden" data-veld="locatie_code" value="'+esc(huidigLoc)+'">'
+    +'<input type="hidden" data-veld="afdeling_code" value="'+esc(huidigAfd)+'">'
+    +'<div class="loc-wolk" data-locwolk="'+itemId+'">'+wolk+'</div>'
     +'</div>';
 }
 const POLIS_OPTIES = ['Opstal/installaties','Gewasschade','Voertuigen','Overige'];
@@ -559,6 +596,25 @@ function koppelItems(root){
     const item=document.querySelector('.item[data-id="'+itemId+'"]');
     const inp2=item && item.querySelector('[data-veld="verhaal_bedrijf"]');
     if(inp2) inp2.value=naam;
+  });
+  root.querySelectorAll('[data-vulloc]').forEach(chip=>chip.onclick=(e)=>{
+    e.stopPropagation();
+    const loc=chip.dataset.vulloc, afd=chip.dataset.vulafd;
+    const detail=chip.closest('.detail');
+    const tekstInp=detail.querySelector('[data-veld="locatie"]');
+    const locInp=detail.querySelector('[data-veld="locatie_code"]');
+    const afdInp=detail.querySelector('[data-veld="afdeling_code"]');
+    const alGekozen = chip.classList.contains('gekozen');
+    if(alGekozen){
+      if(locInp) locInp.value='';
+      if(afdInp) afdInp.value='';
+    } else {
+      if(tekstInp) tekstInp.value=locTekst(loc,afd);
+      if(locInp) locInp.value=loc;
+      if(afdInp) afdInp.value=afd;
+    }
+    const wolk=chip.closest('[data-locwolk]');
+    if(wolk) wolk.querySelectorAll('.bchip').forEach(c=>c.classList.toggle('gekozen', c===chip && !alGekozen));
   });
   root.querySelectorAll('[data-vulpolis]').forEach(chip=>chip.onclick=(e)=>{
     e.stopPropagation();
