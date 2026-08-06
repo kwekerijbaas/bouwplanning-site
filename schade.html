@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="nl">
 <head>
@@ -218,7 +219,7 @@ function initLightbox(){
   });
 }
 
-const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterCat:'', filterStatus:'', toonGereed:false, zoek:'',
+const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterCat:'', filterStatus:'', filterPolis:'', toonGereed:false, zoek:'',
   code:localStorage.getItem('si_code')||'', wie:localStorage.getItem('si_wie')||'' };
 
 async function api(body){
@@ -269,12 +270,14 @@ function rOverzicht(app){
   const totaal=items.length;
   const open = items.filter(i=>!i.gereed).length;
   const zonderBedrijf = items.filter(i=>!i.gereed && !i.uitgevoerd_door).length;
+  const zonderPolis = items.filter(i=>!i.gereed && !i.polis).length;
   const verhaal = items.filter(i=>i.verhaal_op_derden && !i.gereed).length;
   const gereed = items.filter(i=>i.gereed).length;
   let h='<div class="kpis">';
   h+='<div class="kpi"><div class="n">'+totaal+'</div><div class="l">Schade-items totaal</div></div>';
   h+='<div class="kpi warn"><div class="n">'+open+'</div><div class="l">Nog open</div></div>';
   h+='<div class="kpi warn"><div class="n">'+zonderBedrijf+'</div><div class="l">Nog geen bedrijf gekoppeld</div></div>';
+  h+='<div class="kpi warn"><div class="n">'+zonderPolis+'</div><div class="l">Nog geen polis</div></div>';
   h+='<div class="kpi"><div class="n">'+verhaal+'</div><div class="l">Verhaal op derden (open)</div></div>';
   h+='<div class="kpi"><div class="n">'+gereed+'</div><div class="l">Gereed</div></div>';
   h+='</div>';
@@ -296,10 +299,11 @@ function rOverzicht(app){
 function matchFilter(i){
   if(S.filterCat && i.categorie!==S.filterCat) return false;
   if(!S.toonGereed && i.gereed) return false;
-  if(S.filterStatus==='open' && i.gereed) return false;
+  if(S.filterStatus==='open' && (i.gereed || i.uitgevoerd_door)) return false;
   if(S.filterStatus==='gereed' && !i.gereed) return false;
   if(S.filterStatus==='verhaal' && !i.verhaal_op_derden) return false;
-  if(S.filterStatus==='zonder_bedrijf' && (i.uitgevoerd_door||i.gereed)) return false;
+  if(S.filterPolis==='geen' && i.polis) return false;
+  if(S.filterPolis && S.filterPolis!=='geen' && i.polis!==S.filterPolis) return false;
   if(S.zoek){
     const z=S.zoek.toLowerCase();
     if(!(String(i.schade_id).toLowerCase().includes(z) || String(i.locatie||'').toLowerCase().includes(z) || String(i.omschrijving||'').toLowerCase().includes(z))) return false;
@@ -315,7 +319,8 @@ function rItems(app){
   h+='<div class="filters">'
     +'<input type="text" id="f-zoek" placeholder="zoeken…" value="'+esc(S.zoek)+'">'
     +'<select id="f-cat"><option value="">alle categorieën</option><option value="schade">schade</option><option value="gewas">gewas</option><option value="steun">steun/overig</option></select>'
-    +'<select id="f-status"><option value="">alle statussen</option><option value="open">nog open</option><option value="zonder_bedrijf">nog geen bedrijf</option><option value="verhaal">verhaal op derden</option><option value="gereed">gereed</option></select>'
+    +'<select id="f-status"><option value="">alle statussen</option><option value="open">nog open (zonder bedrijf)</option><option value="verhaal">verhaal op derden</option><option value="gereed">gereed</option></select>'
+    +'<select id="f-polis"><option value="">alle polissen</option><option value="geen">nog geen polis</option>'+POLIS_OPTIES.map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('')+'</select>'
     +'<label class="vervallen-toggle"><input type="checkbox" id="f-vervallen"> toon gereed-items</label>'
     +'</div>';
   const items=S.data.items.filter(matchFilter).sort((a,b)=>String(a.datum||'').localeCompare(String(b.datum||''))||String(a.schade_id).localeCompare(b.schade_id));
@@ -326,6 +331,7 @@ function rItems(app){
   document.getElementById('f-zoek').value=S.zoek;
   document.getElementById('f-cat').value=S.filterCat; document.getElementById('f-cat').onchange=e=>{S.filterCat=e.target.value;render();};
   document.getElementById('f-status').value=S.filterStatus; document.getElementById('f-status').onchange=e=>{S.filterStatus=e.target.value;render();};
+  document.getElementById('f-polis').value=S.filterPolis; document.getElementById('f-polis').onchange=e=>{S.filterPolis=e.target.value;render();};
   document.getElementById('f-vervallen').checked=S.toonGereed; document.getElementById('f-vervallen').onchange=e=>{S.toonGereed=e.target.checked;render();};
   document.getElementById('ni-knop').onclick=()=>{
     const loc=document.getElementById('ni-locatie').value.trim();
@@ -338,7 +344,7 @@ function rItems(app){
 function renderItemsOnly(){ rItems(document.getElementById('app')); }
 function statusBadge(i){
   if(i.gereed) return '<span class="stadium status-gereed">✓ Gereed</span>';
-  if(i.verhaal_op_derden) return '<span class="stadium status-verhaal">Verhaal op derden'+(i.uitgevoerd_door?': '+esc(i.uitgevoerd_door):'')+'</span>';
+  if(i.verhaal_op_derden) return '<span class="stadium status-verhaal">Verhaal op: '+(i.verhaal_bedrijf?esc(i.verhaal_bedrijf):'nog invullen')+'</span>'+(i.uitgevoerd_door?' <span class="stadium">Reparatie: '+esc(i.uitgevoerd_door)+'</span>':'');
   return '<span class="stadium '+(i.uitgevoerd_door?'':'nogcat')+'">'+(i.uitgevoerd_door?esc(i.uitgevoerd_door):'Nog geen bedrijf')+'</span>';
 }
 function itemRow(i){
@@ -351,12 +357,14 @@ function itemRow(i){
       +veld('Categorie','categorie',i.categorie,'select',['schade','gewas','steun'])
       +'</div>'
       +veldSchadecategorie(i.schadecategorie,i.id)
+      +veldPolis(i.polis,i.id)
       +veldFull('Omschrijving / duiding','omschrijving',i.omschrijving,'textarea')
       +fotoThumbs(i)
       +uploadRij(i)
       +veldFull('Opmerkingen','opmerkingen',i.opmerkingen,'textarea')
-      +veldBedrijf(i.uitgevoerd_door,i.id,i.verhaal_op_derden)
-      +'<label class="veld" style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" data-veld="verhaal_op_derden" '+(i.verhaal_op_derden?'checked':'')+' style="width:auto"> Verhaalbaar op derden (schade veroorzaakt door een derde partij — bedrijf hierboven is dan op wie te verhalen)</label>'
+      +veldBedrijf(i.uitgevoerd_door,i.id)
+      +'<label class="veld" style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input type="checkbox" data-veld="verhaal_op_derden" data-verhaaltoggle="'+i.id+'" '+(i.verhaal_op_derden?'checked':'')+' style="width:auto"> Verhaalbaar op derden (schade veroorzaakt door een derde partij)</label>'
+      +'<div data-verhaalblok="'+i.id+'" style="display:'+(i.verhaal_op_derden?'block':'none')+'">'+veldVerhaalBedrijf(i.verhaal_bedrijf,i.id)+'</div>'
       +'<label class="veld" style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;font-size:14px"><input type="checkbox" data-veld="gereed" '+(i.gereed?'checked':'')+' style="width:auto;transform:scale(1.3)"> <b>Gereed / afgehandeld</b></label>'
       +'<div class="stil" style="margin-top:8px">Datum: '+fmtD(i.datum)+' · Laatst gewijzigd door: '+esc(i.laatst_gewijzigd_door||'—')+(i.updated_at?(' · '+String(i.updated_at).slice(0,16).replace('T',' ')):'')+'</div>'
       +'<div class="opslaan-rij"><button class="knop licht klein" data-sluit="1">Sluiten</button><button class="knop klein" data-opslaan="'+i.id+'">Opslaan</button></div>'
@@ -368,6 +376,7 @@ function itemRow(i){
     +'<span class="datum">'+fmtD(i.datum)+'</span>'
     +catChip
     +(i.schadecategorie?'<span class="chip cat-badge">'+esc(i.schadecategorie)+'</span>':'')
+    +(i.polis?'<span class="chip cat-badge" style="background:#8a5a3b">'+esc(i.polis)+'</span>':'')
     +'<span class="oms">'+esc(i.locatie||i.omschrijving||'')+'</span>'
     +statusBadge(i)
     +'<button type="button" class="knop klein gereed-toggle'+(i.gereed?' aan':'')+'" data-gereed-toggle="'+i.id+'">'+(i.gereed?'✓ Gereed':'Gereed?')+'</button>'
@@ -388,19 +397,33 @@ function veld(label,name,val,type,opts){
   }
   return '<div><label class="veld">'+esc(label)+'</label><input type="'+type+'" data-veld="'+name+'" value="'+esc(val==null?'':val)+'"></div>';
 }
-function veldBedrijf(val,itemId,verhaal){
+function veldBedrijf(val,itemId){
   const huidig = String(val||'').trim().toLowerCase();
   const bedrijven = canonBedrijven();
-  const label = verhaal ? 'Bedrijf — op wie te verhalen' : 'Bedrijf — voert de reparatie uit';
   const chips = bedrijven.length
     ? '<div class="bchips" data-bchips="'+itemId+'">'+bedrijven.map(b=>'<button type="button" class="bchip'+(b.trim().toLowerCase()===huidig?' gekozen':'')+'" data-vulbedrijf="'+esc(b)+'">'+esc(b)+'</button>').join('')+'</div>'
     : '';
-  return '<div><label class="veld">'+label+' — tik om te kiezen, of typ vrij</label>'
+  return '<div><label class="veld">Bedrijf — voert de reparatie uit — tik om te kiezen, of typ vrij</label>'
     +'<input type="text" data-veld="uitgevoerd_door" list="bedrijven-lijst" placeholder="bv. KZ, Huisman, Luiten…" value="'+esc(val==null?'':val)+'">'
     +chips
     +'<div class="bedrijf-nieuw">'
     +'<input type="text" data-nieuw-bedrijf="'+itemId+'" placeholder="+ nieuw bedrijf toevoegen…">'
     +'<button type="button" class="knop licht klein" data-bedrijf-toevoegen="'+itemId+'">Toevoegen</button>'
+    +'</div>'
+    +'</div>';
+}
+function veldVerhaalBedrijf(val,itemId){
+  const huidig = String(val||'').trim().toLowerCase();
+  const bedrijven = canonBedrijven();
+  const chips = bedrijven.length
+    ? '<div class="bchips" data-vbchips="'+itemId+'">'+bedrijven.map(b=>'<button type="button" class="bchip'+(b.trim().toLowerCase()===huidig?' gekozen':'')+'" data-vulverhaalbedrijf="'+esc(b)+'">'+esc(b)+'</button>').join('')+'</div>'
+    : '';
+  return '<div><label class="veld">Bedrijf — op wie te verhalen (kan afwijken van de reparateur hierboven) — tik om te kiezen, of typ vrij</label>'
+    +'<input type="text" data-veld="verhaal_bedrijf" list="bedrijven-lijst" placeholder="bv. KZ, Huisman, Luiten…" value="'+esc(val==null?'':val)+'">'
+    +chips
+    +'<div class="bedrijf-nieuw">'
+    +'<input type="text" data-nieuw-verhaalbedrijf="'+itemId+'" placeholder="+ nieuw bedrijf toevoegen…">'
+    +'<button type="button" class="knop licht klein" data-verhaalbedrijf-toevoegen="'+itemId+'">Toevoegen</button>'
     +'</div>'
     +'</div>';
 }
@@ -417,6 +440,15 @@ function veldSchadecategorie(val,itemId){
     +'<input type="text" data-nieuw-categorie="'+itemId+'" placeholder="+ nieuwe categorie toevoegen…">'
     +'<button type="button" class="knop licht klein" data-categorie-toevoegen="'+itemId+'">Toevoegen</button>'
     +'</div>'
+    +'</div>';
+}
+const POLIS_OPTIES = ['Opstal/installaties','Gewasschade','Voertuigen','Overige'];
+function veldPolis(val,itemId){
+  const huidig = String(val||'').trim();
+  const chips = '<div class="bchips" data-polischips="'+itemId+'">'+POLIS_OPTIES.map(o=>'<button type="button" class="bchip'+(o===huidig?' gekozen':'')+'" data-vulpolis="'+esc(o)+'">'+esc(o)+'</button>').join('')+'</div>';
+  return '<div><label class="veld">Polis — waarop te verhalen</label>'
+    +'<input type="hidden" data-veld="polis" value="'+esc(val==null?'':val)+'">'
+    +chips
     +'</div>';
 }
 function veldFull(label,name,val,type){
@@ -482,6 +514,12 @@ function koppelItems(root){
     const i=S.data.items.find(x=>x.id===id);
     doe({action:'item_update',id, fields}, i.schade_id+' bijgewerkt door '+S.wie);
   });
+  root.querySelectorAll('[data-verhaaltoggle]').forEach(cb=>cb.onchange=(e)=>{
+    e.stopPropagation();
+    const itemId=cb.dataset.verhaaltoggle;
+    const blok=document.querySelector('[data-verhaalblok="'+itemId+'"]');
+    if(blok) blok.style.display = cb.checked ? 'block' : 'none';
+  });
   root.querySelectorAll('[data-vulbedrijf]').forEach(chip=>chip.onclick=(e)=>{
     e.stopPropagation();
     const naam=chip.dataset.vulbedrijf;
@@ -501,6 +539,35 @@ function koppelItems(root){
     const item=document.querySelector('.item[data-id="'+itemId+'"]');
     const bedrijfInp=item && item.querySelector('[data-veld="uitgevoerd_door"]');
     if(bedrijfInp) bedrijfInp.value=naam;
+  });
+  root.querySelectorAll('[data-vulverhaalbedrijf]').forEach(chip=>chip.onclick=(e)=>{
+    e.stopPropagation();
+    const naam=chip.dataset.vulverhaalbedrijf;
+    const detail=chip.closest('.detail');
+    const inp=detail.querySelector('[data-veld="verhaal_bedrijf"]');
+    if(inp) inp.value=naam;
+    const groep=chip.closest('[data-vbchips]');
+    if(groep) groep.querySelectorAll('.bchip').forEach(c=>c.classList.toggle('gekozen', c===chip));
+  });
+  root.querySelectorAll('[data-verhaalbedrijf-toevoegen]').forEach(btn=>btn.onclick=async(e)=>{
+    e.stopPropagation();
+    const itemId=+btn.dataset.verhaalbedrijfToevoegen;
+    const inp=document.querySelector('[data-nieuw-verhaalbedrijf="'+itemId+'"]');
+    const naam=(inp&&inp.value||'').trim();
+    if(!naam){ toast('Vul een bedrijfsnaam in'); return; }
+    await doe({action:'bedrijf_add', naam}, 'Nieuw bedrijf toegevoegd: '+naam);
+    const item=document.querySelector('.item[data-id="'+itemId+'"]');
+    const inp2=item && item.querySelector('[data-veld="verhaal_bedrijf"]');
+    if(inp2) inp2.value=naam;
+  });
+  root.querySelectorAll('[data-vulpolis]').forEach(chip=>chip.onclick=(e)=>{
+    e.stopPropagation();
+    const naam=chip.dataset.vulpolis;
+    const detail=chip.closest('.detail');
+    const inp=detail.querySelector('[data-veld="polis"]');
+    if(inp) inp.value = (inp.value===naam) ? '' : naam;
+    const groep=chip.closest('[data-polischips]');
+    if(groep) groep.querySelectorAll('.bchip').forEach(c=>c.classList.toggle('gekozen', c===chip && inp && inp.value===naam));
   });
   root.querySelectorAll('[data-vulcategorie]').forEach(chip=>chip.onclick=(e)=>{
     e.stopPropagation();
@@ -553,8 +620,9 @@ function rPerBedrijf(app){
       hh+=g.open.map(i=>'<div class="pb-item" data-openitem="'+i.id+'">'
         +'<span class="id">'+esc(i.schade_id)+'</span>'
         +(i.schadecategorie?'<span class="chip cat-badge">'+esc(i.schadecategorie)+'</span>':'')
+        +(i.polis?'<span class="chip cat-badge" style="background:#8a5a3b">'+esc(i.polis)+'</span>':'')
         +'<span class="oms">'+esc(i.locatie||i.omschrijving||'')+'</span>'
-        +(i.verhaal_op_derden?'<span class="stadium status-verhaal">Verhaal op derden</span>':'')
+        +(i.verhaal_op_derden?'<span class="stadium status-verhaal">Verhaal op: '+(i.verhaal_bedrijf?esc(i.verhaal_bedrijf):'nog invullen')+'</span>':'')
         +'<button type="button" class="knop klein gereed-toggle" data-gereed-toggle="'+i.id+'">Gereed?</button>'
         +'</div>').join('');
     }
