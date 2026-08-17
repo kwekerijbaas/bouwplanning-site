@@ -94,7 +94,7 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .actrij .nm .datums{font-size:11px;color:var(--grijs)}
 .pijl{width:30px;height:30px;border-radius:7px;border:1px solid var(--lijn);background:#fff;font-size:13px;color:var(--grijs)}
 .pijl.aanuit{background:var(--groen);border-color:var(--groen);color:#fff}
-.pijl.vastaan{background:var(--rood);border-color:var(--rood);color:#fff}
+.pijl.vastaan{background:#fdecea;border-color:var(--rood);color:var(--rood)}
 .terug{color:var(--groen);font-weight:600;margin-bottom:8px;display:inline-block;font-size:14px}
 .afdkop{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .afdkop .titel{font-size:18px;font-weight:700}
@@ -1083,8 +1083,8 @@ function rAfdDetail(app){
   h+='<div class="kaart"><h2>Activiteiten (volgorde = planning)</h2>'
     +'<div class="keuze" style="margin-bottom:8px"><button id="afd-kopieer">&#10697; Opzet overnemen van&hellip;</button>'
     +'<button id="afd-kopieer-naar">&#10697; Deze opzet kopi&euml;ren naar&hellip;</button></div>'
-    +'<div class="stil" style="margin-bottom:6px"><span style="color:var(--groen)">↳ volgt op</span> = schuift mee met de vorige activiteit · '
-    +'<span style="color:var(--rood)">📌 vast op</span> = blijft op die datum staan. Tik de knop ↳ of 📌 in de rij om te wisselen.</div>';
+    +'<div class="stil" style="margin-bottom:6px"><span style="color:var(--groen)">↓ volgt op</span> = schuift mee met de vorige activiteit · '
+    +'<span style="color:var(--rood)">📌 vast op</span> = blijft op die datum staan. Tik de knop ↓ of 📌 in de rij om te wisselen.</div>';
   let vorigeGepland=null;
   rows.forEach((r,i)=>{
     const a=r.a;
@@ -1107,7 +1107,7 @@ function rAfdDetail(app){
       +'<button class="pijl'+(a.handmatige_start?' vastaan':'')+'" data-vast="'+a.id+'"'
         +((a.handmatige_start||r.start)?'':' disabled style="opacity:.3"')
         +' title="'+(a.handmatige_start?'losmaken — sluit dan weer automatisch aan op de vorige activiteit':'vastzetten op deze startdatum, dan schuift hij niet meer mee')+'">'
-        +(a.handmatige_start?'📌':'↳')+'</button>'
+        +(a.handmatige_start?'📌':'↓')+'</button>'
       +'<button class="pijl'+(a.status==='nvt'?' aanuit':'')+'" data-nvt="'+a.id+'" title="'+(a.status==='nvt'?'weer actief maken':'niet van toepassing voor deze afdeling')+'">⊘</button>'
       +'<button class="pijl" data-op="meer" data-id="'+a.id+'">›</button>'
       +'</div>';
@@ -1735,7 +1735,7 @@ function kopieerRegels(bronAfd, bronActs, doelAfd, weken){
     if(bid){ const t=(S.data.toewijzingen||[]).find(z=>z.locatie_id===doelAfd.locatie_id&&z.activiteit_naam===b.naam); if(t&&t.bedrijf_id===bid) bid=null; }
     const r={naam:b.naam,bedrijf_id:bid};
     if(b.duur!=null) r.duur=b.duur;
-    if(b.status==='nvt') r.status='nvt';
+    r.nvt=(b.status==='nvt');   // n.v.t. hoort bij de opzet en gaat dus beide kanten op mee
     if(weken!=null){
       const mee=lijst=>(lijst||[]).map(d=>iso(schuif(pd(d),weken*7)));
       r.handmatige_start=b.handmatige_start?iso(schuif(pd(b.handmatige_start),weken*7)):null;
