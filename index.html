@@ -46,16 +46,16 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 .dagnav .datum{flex:1;text-align:center;font-weight:600;font-size:15px}
 .dagnav button{background:var(--kaart);border:1px solid var(--lijn);border-radius:8px;padding:8px 14px;font-size:16px}
 /* weekgrid */
-#wg{overflow-x:auto;background:var(--kaart);border:1px solid var(--lijn);border-radius:10px}
+#wg{overflow:auto;max-height:calc(100vh - 190px);background:var(--kaart);border:1px solid var(--lijn);border-radius:10px}
 #wg table{border-collapse:collapse;min-width:100%}
 #wg th,#wg td{border-bottom:1px solid var(--lijn);border-right:1px solid #eef1ef;padding:0;font-size:11px}
-#wg th{background:#f7f9f8;padding:4px 6px;font-weight:600;color:var(--grijs);text-align:center;white-space:nowrap}
+#wg th{background:#f7f9f8;padding:4px 6px;font-weight:600;color:var(--grijs);text-align:center;white-space:nowrap;position:sticky;top:0;z-index:3}
 #wg th.wknu{background:var(--groen);color:#fff}
 #wg th.wkhuidig{border-bottom:3px solid var(--groen)}
-#wg th[data-week]{position:relative}
 .kolgreep{position:absolute;top:0;right:0;width:10px;height:100%;cursor:col-resize;touch-action:none;border-right:3px solid transparent}
 .kolgreep:hover{border-right-color:var(--groen-licht)}
 #wg td.naam,#wg th.naam{position:sticky;left:0;background:var(--kaart);text-align:left;padding:5px 8px;font-size:12px;white-space:nowrap;z-index:2;border-right:2px solid var(--lijn);max-width:130px;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+#wg tr.kop th.naam{z-index:5}
 #wg tr.blokkop td{background:#eef4f1;font-weight:600;color:var(--groen);padding:4px 8px;font-size:11px}
 #wg tr.lockop td{background:var(--groen);color:#fff;font-weight:700;padding:5px 8px;font-size:12px}
 .wcel{height:30px;min-width:44px;position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:1px 2px}
@@ -1628,38 +1628,46 @@ function kopieerWanneer(bronAfd, doelen){
   const dichtFn=()=>{sh.style.display='none';sh.innerHTML='';};
   const bronActs=S.data.activiteiten.filter(z=>z.afdeling_id===bronAfd.id).slice().sort((a,b)=>a.sort-b.sort);
   const namen=doelen.map(z=>afdNaam(S.data.afdelingen.find(q=>q.id===z)));
-  let modus=doelen.length>1?'ladder':'0';
+  let modus=doelen.length>1?'ladder':'0', weken=0;
   const maak=()=>{
-    const keuzes=[['0','zelfde datums'],['1','1 week later'],['2','2 weken later'],['3','3 weken later']];
-    if(doelen.length>1) keuzes.push(['ladder','elke volgende een week later']);
-    keuzes.push(['geen','alleen werkdagen, geen datums']);
     let uitleg='';
     if(modus==='ladder') uitleg=namen.map((n,i)=>'• '+esc(n)+' — '+wkn(i+1)+' later').join('<br>');
     else if(modus==='geen') uitleg='Alleen werkdagen, volgorde, bedrijven en n.v.t. gaan mee. Elke afdeling houdt haar eigen datums en vrije dagen.';
-    else uitleg=namen.map(n=>'• '+esc(n)).join('<br>')+'<br><span class="stil">'+(modus==='0'?'dezelfde datums als '+esc(afdNaam(bronAfd)):wkn(+modus)+' later dan '+esc(afdNaam(bronAfd)))+'</span>';
+    else uitleg=namen.map(n=>'• '+esc(n)).join('<br>')+'<br><span class="stil">'+(weken===0?'dezelfde datums als '+esc(afdNaam(bronAfd)):wknRicht(weken)+' dan '+esc(afdNaam(bronAfd)))+'</span>';
     sh.innerHTML='<div class="sheetkaart"><div class="sheettitel">&#10697; '+esc(afdNaam(bronAfd))+' kopiëren naar '+doelen.length+' afdeling(en)</div>'
       +'<div class="stil"><b>Wanneer begint dit werk daar?</b></div>'
-      +'<div class="keuze">'+keuzes.map(k=>'<button data-kwn="'+k[0]+'" class="'+(modus===k[0]?'aan':'')+'">'+k[1]+'</button>').join('')+'</div>'
+      +'<div class="keuze" style="align-items:center">'
+        +(modus==='weken'||modus==='0'
+          ?'<button class="stap" data-kwstap="-1" title="een week eerder">−</button>'
+            +'<b style="min-width:120px;text-align:center;font-size:13px">'+wknRicht(weken)+'</b>'
+            +'<button class="stap" data-kwstap="1" title="een week later">+</button>'
+          :'<button data-kwn="0">datums meenemen</button>')
+        +(doelen.length>1?'<button data-kwn="ladder" class="'+(modus==='ladder'?'aan':'')+'">elke volgende een week later</button>':'')
+        +'<button data-kwn="geen" class="'+(modus==='geen'?'aan':'')+'">alleen werkdagen, geen datums</button></div>'
       +'<div style="font-size:13px;line-height:1.6;margin:2px 0">'+uitleg+'</div>'
+      +kopieerWegBlok(bronActs,doelen.map(z=>S.data.afdelingen.find(q=>q.id===z)))
       +'<button class="knop breed" id="kw-ok">✓ Kopiëren</button>'
       +'<button class="knop licht breed" id="kw-sluit">Annuleren</button></div>';
     sh.style.display='flex';
     sh.onclick=e=>{ if(e.target===sh) dichtFn(); };
     document.getElementById('kw-sluit').onclick=dichtFn;
     sh.querySelectorAll('button[data-kwn]').forEach(b=>b.onclick=()=>{ modus=b.dataset.kwn; maak(); });
+    sh.querySelectorAll('button[data-kwstap]').forEach(b=>b.onclick=()=>{
+      weken=Math.max(-26,Math.min(26,weken+ +b.dataset.kwstap)); modus='weken'; maak();
+    });
     document.getElementById('kw-ok').onclick=async()=>{
       dichtFn();
       bezig('Bezig met kopiëren naar '+doelen.length+' afdeling(en)…');
       try{
         await api({action:'act_kopieer',
           doelen:doelen.map((doelId,i)=>{
-            const weken=modus==='geen'?null:(modus==='ladder'?i+1:+modus);
+            const w=modus==='geen'?null:(modus==='ladder'?i+1:weken);
             const doelAfd=S.data.afdelingen.find(z=>z.id===doelId);
-            const rij={afdeling_id:doelId,regels:kopieerRegels(bronAfd,bronActs,doelAfd,weken)};
-            if(weken!=null) rij.startdatum=iso(schuif(pd(bronAfd.startdatum||vandaagISO()),weken*7));
+            const rij={afdeling_id:doelId,regels:kopieerRegels(bronAfd,bronActs,doelAfd,w)};
+            if(w!=null) rij.startdatum=iso(schuif(pd(bronAfd.startdatum||vandaagISO()),w*7));
             return rij;
           }),
-          log:'Opzet van '+afdNaam(bronAfd)+' gekopieerd naar '+namen.join(', ')+(modus==='ladder'?' (elke volgende een week later)':(modus==='geen'?'':' ('+modus+' week later)'))});
+          log:'Opzet van '+afdNaam(bronAfd)+' gekopieerd naar '+namen.join(', ')+(modus==='ladder'?' (elke volgende een week later)':(modus==='geen'?'':' ('+wknRicht(weken)+')'))});
         await laad(); render();
         toast('Opzet gekopieerd naar '+doelen.length+' afdeling(en)');
       }catch(e){ toast(e.message||'Kopiëren mislukt'); }
@@ -1673,6 +1681,28 @@ function kopieerWanneer(bronAfd, doelen){
    weken = aantal weken dat de datums opschuiven; null = geen datums meenemen.
    Activiteiten die in de bron op n.v.t. staan gaan ook op n.v.t.; voortgang (bezig/klaar)
    gaat nooit mee, want dat is werk van de afdeling zelf. */
+/* Kopieren is letterlijk: wat in de doelafdeling staat maar niet in de bron, verdwijnt.
+   Dit blok laat vooraf zien wat dat is, met de ingevulde activiteiten voorop. */
+function kopieerWeg(bronActs, doelAfdelingen){
+  const bronNamen=new Set(bronActs.map(z=>z.naam));
+  const uit=[];
+  for(const d of doelAfdelingen)
+    for(const a of S.data.activiteiten.filter(z=>z.afdeling_id===d.id&&!bronNamen.has(z.naam)))
+      uit.push({afd:d, act:a, gevuld:(a.duur!=null||a.status!=='todo'||a.handmatige_start)});
+  return uit;
+}
+function kopieerWegBlok(bronActs, doelAfdelingen){
+  const weg=kopieerWeg(bronActs,doelAfdelingen);
+  if(!weg.length) return '';
+  const gevuld=weg.filter(x=>x.gevuld);
+  const namen=Array.from(new Set(weg.map(x=>x.act.naam)));
+  let t='<div style="background:#fdf0ec;border:1px solid var(--rood);border-radius:8px;padding:8px;font-size:12px;margin:4px 0">'
+    +'<b>'+weg.length+' activiteit(en) worden verwijderd</b> — die staan daar nu wel maar niet in de bron:<br>'
+    +esc(namen.slice(0,8).join(', '))+(namen.length>8?' en '+(namen.length-8)+' meer':'');
+  if(gevuld.length) t+='<br><b>Waarvan '+gevuld.length+' met ingevulde werkdagen of voortgang:</b> '
+    +esc(Array.from(new Set(gevuld.map(x=>afdNaam(x.afd)+' · '+x.act.naam))).slice(0,6).join(' | '));
+  return t+'</div>';
+}
 function kopieerRegels(bronAfd, bronActs, doelAfd, weken){
   const regels=[];
   for(const b of bronActs){
@@ -1696,7 +1726,8 @@ function kopieerRegels(bronAfd, bronActs, doelAfd, weken){
   return regels;
 }
 function schuif(d, dagen){ const x=new Date(d); x.setUTCDate(x.getUTCDate()+dagen); return x; }
-function wkn(n){ return n+(n===1?' week':' weken'); }
+function wkn(n){ const a=Math.abs(n); return a+(a===1?' week':' weken'); }
+function wknRicht(n){ return n===0?'zelfde datums':(wkn(n)+(n<0?' eerder':' later')); }
 
 function kopieerDuren(afdId){
   const sh=document.getElementById('sheet');
@@ -1728,14 +1759,18 @@ function kopieerDuren(afdId){
       const vrij=S.data.activiteiten.filter(z=>z.afdeling_id===bronId).reduce((n,z)=>n+((z.skipdagen||[]).length),0);
       x+='<div class="stil">Opzet van <b>'+esc(afdNaam(bronAfd))+'</b> ('+matchTelling(bronAfd)+' activiteiten) komt naar deze afdeling. Werkdagen, volgorde, bedrijven en n.v.t. gaan mee; de voortgang (bezig/klaar) blijft van deze afdeling zelf.</div>'
         +'<div class="stil" style="margin-top:6px"><b>Wanneer begint dit werk hier?</b></div>'
-        +'<div class="keuze">'+[0,1,2,3,4].map(w=>'<button data-kw="'+w+'" class="'+(kdWeken===w?'aan':'')+'">'
-          +(w===0?'zelfde datums':wkn(w)+' later')+'</button>').join('')
-        +'<button data-kw="eigen" class="'+(kdWeken==null?'aan':'')+'">eigen startdatum</button></div>'
+        +'<div class="keuze" style="align-items:center">'
+          +(kdWeken==null?'':'<button class="stap" data-kwstap="-1" title="een week eerder">−</button>'
+            +'<b style="min-width:120px;text-align:center;font-size:13px">'+wknRicht(kdWeken)+'</b>'
+            +'<button class="stap" data-kwstap="1" title="een week later">+</button>')
+          +'<button data-kw="0" class="'+(kdWeken===0?'aan':'')+'">zelfde datums</button>'
+          +'<button data-kw="eigen" class="'+(kdWeken==null?'aan':'')+'">eigen startdatum</button></div>'
         +(kdWeken==null
           ?'<div class="sheetrij"><label>Start</label><input type="date" id="kd-start" value="'+(doelAfd.startdatum?doelAfd.startdatum.slice(0,10):'')+'"></div>'
             +'<div class="stil">De app rekent de hele reeks vanaf deze datum door; 📌 vaste datums uit de bron gaan dan niet mee.</div>'
-          :'<div class="stil">'+(vast?'De '+vast+' 📌 vaste datum(s)'+(vrij?' en '+vrij+' vrije dag(en)':'')+' van '+esc(afdNaam(bronAfd))+' gaan mee'+(kdWeken?', '+wkn(kdWeken)+' later':'')+'.'
-              :(vrij?'De '+vrij+' vrije dag(en) gaan mee'+(kdWeken?', '+wkn(kdWeken)+' later':'')+'. ':'')+'De reeks rekent door vanaf '+fmt(schuif(pd(bronAfd.startdatum||vandaagISO()),kdWeken*7))+'.')+'</div>')
+          :'<div class="stil">'+(vast?'De '+vast+' 📌 vaste datum(s)'+(vrij?' en '+vrij+' vrije dag(en)':'')+' van '+esc(afdNaam(bronAfd))+' gaan mee'+(kdWeken?', '+wknRicht(kdWeken):'')+'.'
+              :(vrij?'De '+vrij+' vrije dag(en) gaan mee'+(kdWeken?', '+wknRicht(kdWeken):'')+'. ':'')+'De reeks rekent door vanaf '+fmt(schuif(pd(bronAfd.startdatum||vandaagISO()),kdWeken*7))+'.')+'</div>')
+        +kopieerWegBlok(S.data.activiteiten.filter(z=>z.afdeling_id===bronId),[doelAfd])
         +'<button class="knop breed" id="kd-ok">✓ Overnemen</button>'
         +'<button class="knop licht breed" id="kd-terug">‹ andere afdeling kiezen</button>'
         +'<button class="knop licht breed" id="kd-sluit">Annuleren</button></div>';
@@ -1746,6 +1781,9 @@ function kopieerDuren(afdId){
     sh.querySelectorAll('button[data-kd]').forEach(b=>b.onclick=()=>{ bronId=+b.dataset.kd; maak(); });
     sh.querySelectorAll('button[data-kw]').forEach(b=>b.onclick=()=>{
       kdWeken=b.dataset.kw==='eigen'?null:+b.dataset.kw; maak();
+    });
+    sh.querySelectorAll('button[data-kwstap]').forEach(b=>b.onclick=()=>{
+      kdWeken=Math.max(-26,Math.min(26,(kdWeken||0)+ +b.dataset.kwstap)); maak();
     });
     const terug=document.getElementById('kd-terug');
     if(terug) terug.onclick=()=>{ bronId=null; maak(); };
@@ -1764,9 +1802,9 @@ function kopieerDuren(afdId){
         const regels=kopieerRegels(bronAfd,bronActs,doelAfd,kdWeken);
         await api({action:'act_kopieer',doelen:[{afdeling_id:afdId,startdatum:startIso,regels:regels}],
           log:afdNaam(doelAfd)+' — opzet overgenomen van '+afdNaam(bronAfd)
-            +(kdWeken?' ('+kdWeken+' week later)':'')+', start '+startIso});
+            +(kdWeken?' ('+wknRicht(kdWeken)+')':'')+', start '+startIso});
         await laad(); render();
-        toast('Opzet overgenomen van '+afdNaam(bronAfd)+(kdWeken?' — '+wkn(kdWeken)+' later':''));
+        toast('Opzet overgenomen van '+afdNaam(bronAfd)+(kdWeken?' — '+wknRicht(kdWeken):''));
       }catch(e){ toast(e.message||'Overnemen mislukt'); }
       finally{ bezig(false); }
     };
