@@ -93,6 +93,9 @@ label.veld{display:block;font-size:12px;color:var(--grijs);margin:8px 0 3px}
 @media(max-width:560px){.grid2{grid-template-columns:1fr}}
 .foto-ref{font-size:11px;color:var(--grijs);word-break:break-all;background:#f2f4f3;border-radius:6px;padding:6px 8px;margin-top:4px}
 .foto-thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.fotowrap{position:relative;display:inline-flex}
+.foto-dl{position:absolute;right:3px;bottom:3px;background:rgba(255,255,255,.92);border:1px solid var(--lijn);border-radius:6px;font-size:12px;line-height:1;padding:3px 6px;color:var(--groen);font-weight:700}
+.foto-dl:hover{background:#fff;color:#000}
 .foto-thumbs a{display:block;width:64px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--lijn);flex:none}
 .foto-thumbs img{width:100%;height:100%;object-fit:cover;display:block}
 .foto-thumbs .vid-chip{width:auto;height:auto;padding:6px 8px;font-size:11px;color:var(--blauw);background:#eef4fa;display:flex;align-items:center}
@@ -151,7 +154,7 @@ details.log .regel{font-size:12px;color:var(--grijs);display:flex;justify-conten
 <div id="tabs"></div>
 <main id="app"></main>
 <div id="toast"></div>
-<div id="lightbox"><div class="lb-topbar"><span class="lb-counter" id="lb-counter"></span><button type="button" class="lb-close" id="lb-close">✕</button></div><button type="button" class="lb-nav lb-prev" id="lb-prev">‹</button><div class="lb-stage" id="lb-stage"></div><button type="button" class="lb-nav lb-next" id="lb-next">›</button></div>
+<div id="lightbox"><div class="lb-topbar"><span class="lb-counter" id="lb-counter"></span><button type="button" class="lb-close" id="lb-dl" title="Download dit bestand">⬇</button><button type="button" class="lb-close" id="lb-close">✕</button></div><button type="button" class="lb-nav lb-prev" id="lb-prev">‹</button><div class="lb-stage" id="lb-stage"></div><button type="button" class="lb-nav lb-next" id="lb-next">›</button></div>
 <script>
 'use strict';
 const API = 'https://hlgvtxcwbhrbbcozvsen.supabase.co/functions/v1/schade/api';
@@ -175,11 +178,31 @@ function isAfbeelding(naam){
 function fotoThumbs(i){
   const namen = fotoLijst(i);
   if(!namen.length) return '<div class="foto-ref">📎 geen foto-referentie</div>';
-  return '<div class="foto-thumbs">'+namen.map((n,idx)=>{
+  let h = '<div class="foto-thumbs">'+namen.map((n,idx)=>{
     const url = FOTO_BASE+encodeURIComponent(n);
-    if(isAfbeelding(n)) return '<a href="'+url+'" data-lightbox="'+i.id+'" data-idx="'+idx+'" title="'+esc(n)+'"><img src="'+url+'" loading="lazy"></a>';
-    return '<a class="vid-chip" href="'+url+'" data-lightbox="'+i.id+'" data-idx="'+idx+'">🎬 '+esc(n)+'</a>';
+    const dl = '<button type="button" class="foto-dl" data-dlfoto="'+esc(n)+'" title="Download '+esc(n)+'">⬇</button>';
+    if(isAfbeelding(n)) return '<span class="fotowrap"><a href="'+url+'" data-lightbox="'+i.id+'" data-idx="'+idx+'" title="'+esc(n)+'"><img src="'+url+'" loading="lazy"></a>'+dl+'</span>';
+    return '<span class="fotowrap"><a class="vid-chip" href="'+url+'" data-lightbox="'+i.id+'" data-idx="'+idx+'">🎬 '+esc(n)+'</a>'+dl+'</span>';
   }).join('')+'</div>';
+  if(namen.length>1) h += '<button type="button" class="knop licht klein" data-dlalle="'+i.id+'" style="margin-top:6px">⬇ Alle '+namen.length+' bestanden downloaden</button>';
+  return h;
+}
+function downloadBestand(naam){
+  const a = document.createElement('a');
+  a.href = FOTO_BASE+encodeURIComponent(naam)+'?download='+encodeURIComponent(naam);
+  a.download = naam;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+function downloadAlle(itemId){
+  const i = S.data.items.find(x=>x.id===itemId);
+  if(!i) return;
+  const namen = fotoLijst(i);
+  if(!namen.length){ toast('Geen bestanden bij dit item'); return; }
+  toast(namen.length+' bestanden worden gedownload…');
+  namen.forEach((n,idx)=>setTimeout(()=>downloadBestand(n), idx*400));
 }
 function printRij(label,waarde){
   const v = (waarde==null || waarde==='') ? '—' : waarde;
@@ -288,6 +311,7 @@ function lbPrev(){ if(!LB.items.length) return; LB.idx=(LB.idx-1+LB.items.length
 function lbNext(){ if(!LB.items.length) return; LB.idx=(LB.idx+1)%LB.items.length; renderLightbox(); }
 function initLightbox(){
   document.getElementById('lb-close').onclick=closeLightbox;
+  document.getElementById('lb-dl').onclick=()=>{ if(LB.items.length) downloadBestand(LB.items[LB.idx]); };
   document.getElementById('lb-prev').onclick=lbPrev;
   document.getElementById('lb-next').onclick=lbNext;
   document.getElementById('lightbox').onclick=(e)=>{ if(e.target.id==='lightbox') closeLightbox(); };
@@ -299,7 +323,7 @@ function initLightbox(){
   });
 }
 
-const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterStatus:'', filterPolis:'', toonGereed:false, zoek:'',
+const S = { data:null, view:'overzicht', open:null, meerOpen:null, filterStatus:'', filterPolis:'', zoek:'',
   code:localStorage.getItem('si_code')||'', wie:localStorage.getItem('si_wie')||'' };
 
 async function api(body){
@@ -379,7 +403,7 @@ function rOverzicht(app){
 }
 
 function matchFilter(i){
-  if(!S.toonGereed && i.gereed) return false;
+  if(S.filterStatus==='' && i.gereed) return false;
   if(S.filterStatus==='open' && (i.gereed || i.uitgevoerd_door)) return false;
   if(S.filterStatus==='gereed' && !i.gereed) return false;
   if(S.filterStatus==='verhaal' && !i.verhaal_op_derden) return false;
@@ -402,9 +426,15 @@ function rItems(app){
     +'<button class="knop klein" id="ni-knop">Toevoegen</button></div></div>';
   h+='<div class="filters">'
     +'<input type="text" id="f-zoek" placeholder="zoeken… (bv. deur, ew4 kap)" value="'+esc(S.zoek)+'">'
-    +'<select id="f-status"><option value="">alle statussen</option><option value="open">nog open (zonder bedrijf)</option><option value="nood">nood hersteld — definitief open</option><option value="verhaal">verhaal op derden</option><option value="gereed">gereed</option></select>'
+    +'<select id="f-status">'
+      +'<option value="">openstaand (standaard)</option>'
+      +'<option value="alles">alles, incl. gereed</option>'
+      +'<option value="open">nog open (zonder bedrijf)</option>'
+      +'<option value="nood">nood hersteld — definitief open</option>'
+      +'<option value="verhaal">verhaal op derden</option>'
+      +'<option value="gereed">alleen gereed</option>'
+    +'</select>'
     +'<select id="f-polis"><option value="">alle polissen</option><option value="geen">nog geen polis</option>'+POLIS_OPTIES.map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('')+'</select>'
-    +'<label class="vervallen-toggle"><input type="checkbox" id="f-vervallen"> toon gereed-items</label>'
     +'</div>';
   h+='<div id="items-lijst"></div>';
   app.innerHTML=h;
@@ -412,7 +442,6 @@ function rItems(app){
   document.getElementById('f-zoek').value=S.zoek;
   document.getElementById('f-status').value=S.filterStatus; document.getElementById('f-status').onchange=e=>{S.filterStatus=e.target.value;renderItemLijst();};
   document.getElementById('f-polis').value=S.filterPolis; document.getElementById('f-polis').onchange=e=>{S.filterPolis=e.target.value;renderItemLijst();};
-  document.getElementById('f-vervallen').checked=S.toonGereed; document.getElementById('f-vervallen').onchange=e=>{S.toonGereed=e.target.checked;renderItemLijst();};
   document.getElementById('ni-knop').onclick=()=>{
     const loc=document.getElementById('ni-locatie').value.trim();
     const oms=document.getElementById('ni-oms').value.trim();
@@ -616,6 +645,8 @@ function koppelItems(root){
   });
   root.querySelectorAll('[data-sluit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();S.open=null;S.meerOpen=null;render();});
   root.querySelectorAll('[data-print]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();printItem(+b.dataset.print);});
+  root.querySelectorAll('[data-dlfoto]').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();downloadBestand(b.dataset.dlfoto);});
+  root.querySelectorAll('[data-dlalle]').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();downloadAlle(+b.dataset.dlalle);});
   root.querySelectorAll('[data-fotoupload]').forEach(inp=>inp.onclick=(e)=>e.stopPropagation());
   root.querySelectorAll('[data-lightbox]').forEach(a=>a.onclick=(e)=>{
     e.preventDefault(); e.stopPropagation();
