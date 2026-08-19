@@ -307,8 +307,10 @@ function matchFilter(i){
   if(S.filterPolis==='geen' && i.polis) return false;
   if(S.filterPolis && S.filterPolis!=='geen' && i.polis!==S.filterPolis) return false;
   if(S.zoek){
-    const z=S.zoek.toLowerCase();
-    if(!(String(i.schade_id).toLowerCase().includes(z) || String(i.locatie||'').toLowerCase().includes(z) || String(i.omschrijving||'').toLowerCase().includes(z))) return false;
+    const woorden=S.zoek.toLowerCase().split(' ').filter(Boolean);
+    const tekst=[i.schade_id,i.locatie,i.omschrijving,i.opmerkingen,i.schadecategorie,i.uitgevoerd_door,i.verhaal_bedrijf,i.polis]
+      .map(v=>String(v==null?'':v).toLowerCase()).join(' | ');
+    if(!woorden.every(w=>tekst.includes(w))) return false;
   }
   return true;
 }
@@ -319,29 +321,36 @@ function rItems(app){
     +'<input type="text" id="ni-oms" placeholder="omschrijving" style="flex:2;min-width:160px">'
     +'<button class="knop klein" id="ni-knop">Toevoegen</button></div></div>';
   h+='<div class="filters">'
-    +'<input type="text" id="f-zoek" placeholder="zoeken…" value="'+esc(S.zoek)+'">'
+    +'<input type="text" id="f-zoek" placeholder="zoeken… (bv. deur, ew4 kap)" value="'+esc(S.zoek)+'">'
     +'<select id="f-status"><option value="">alle statussen</option><option value="open">nog open (zonder bedrijf)</option><option value="verhaal">verhaal op derden</option><option value="gereed">gereed</option></select>'
     +'<select id="f-polis"><option value="">alle polissen</option><option value="geen">nog geen polis</option>'+POLIS_OPTIES.map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('')+'</select>'
     +'<label class="vervallen-toggle"><input type="checkbox" id="f-vervallen"> toon gereed-items</label>'
     +'</div>';
-  const items=S.data.items.filter(matchFilter).sort((a,b)=>String(a.datum||'').localeCompare(String(b.datum||''))||String(a.schade_id).localeCompare(b.schade_id));
-  h+='<div class="stil" style="margin-bottom:6px">'+items.length+' item(en)</div>';
-  h+=items.map(itemRow).join('') || '<div class="leeg">Geen items gevonden.</div>';
+  h+='<div id="items-lijst"></div>';
   app.innerHTML=h;
-  document.getElementById('f-zoek').oninput=e=>{S.zoek=e.target.value;renderItemsOnly();};
+  document.getElementById('f-zoek').oninput=e=>{S.zoek=e.target.value;renderItemLijst();};
   document.getElementById('f-zoek').value=S.zoek;
-  document.getElementById('f-status').value=S.filterStatus; document.getElementById('f-status').onchange=e=>{S.filterStatus=e.target.value;render();};
-  document.getElementById('f-polis').value=S.filterPolis; document.getElementById('f-polis').onchange=e=>{S.filterPolis=e.target.value;render();};
-  document.getElementById('f-vervallen').checked=S.toonGereed; document.getElementById('f-vervallen').onchange=e=>{S.toonGereed=e.target.checked;render();};
+  document.getElementById('f-status').value=S.filterStatus; document.getElementById('f-status').onchange=e=>{S.filterStatus=e.target.value;renderItemLijst();};
+  document.getElementById('f-polis').value=S.filterPolis; document.getElementById('f-polis').onchange=e=>{S.filterPolis=e.target.value;renderItemLijst();};
+  document.getElementById('f-vervallen').checked=S.toonGereed; document.getElementById('f-vervallen').onchange=e=>{S.toonGereed=e.target.checked;renderItemLijst();};
   document.getElementById('ni-knop').onclick=()=>{
     const loc=document.getElementById('ni-locatie').value.trim();
     const oms=document.getElementById('ni-oms').value.trim();
     if(!oms){toast('Vul een omschrijving in');return;}
     doe({action:'item_add',locatie:loc,omschrijving:oms}, 'Nieuwe schade toegevoegd: '+oms);
   };
-  koppelItems(app);
+  renderItemLijst();
 }
-function renderItemsOnly(){ rItems(document.getElementById('app')); }
+function renderItemLijst(){
+  const container=document.getElementById('items-lijst');
+  if(!container) return;
+  const items=S.data.items.filter(matchFilter).sort((a,b)=>String(a.datum||'').localeCompare(String(b.datum||''))||String(a.schade_id).localeCompare(b.schade_id));
+  let h='<div class="stil" style="margin-bottom:6px">'+items.length+' item(en)</div>';
+  h+=items.map(itemRow).join('') || '<div class="leeg">Geen items gevonden.</div>';
+  container.innerHTML=h;
+  koppelItems(container);
+}
+function renderItemsOnly(){ renderItemLijst(); }
 function statusBadge(i){
   if(i.gereed) return '<span class="stadium status-gereed">✓ Gereed</span>';
   if(i.verhaal_op_derden) return '<span class="stadium status-verhaal">Verhaal op: '+(i.verhaal_bedrijf?esc(i.verhaal_bedrijf):'nog invullen')+'</span>'+(i.uitgevoerd_door?' <span class="stadium">Reparatie: '+esc(i.uitgevoerd_door)+'</span>':'');
