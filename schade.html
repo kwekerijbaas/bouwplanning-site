@@ -180,17 +180,24 @@ function fotoThumbs(i){
   if(!namen.length) return '<div class="foto-ref">📎 geen foto-referentie</div>';
   let h = '<div class="foto-thumbs">'+namen.map((n,idx)=>{
     const url = FOTO_BASE+encodeURIComponent(n);
-    const dl = '<button type="button" class="foto-dl" data-dlfoto="'+esc(n)+'" title="Download '+esc(n)+'">⬇</button>';
+    const dl = '<button type="button" class="foto-dl" data-dlfoto="'+esc(n)+'" data-dlid="'+esc(i.schade_id||'')+'" title="Download '+esc(n)+'">⬇</button>';
     if(isAfbeelding(n)) return '<span class="fotowrap"><a href="'+url+'" data-lightbox="'+i.id+'" data-idx="'+idx+'" title="'+esc(n)+'"><img src="'+url+'" loading="lazy"></a>'+dl+'</span>';
     return '<span class="fotowrap"><a class="vid-chip" href="'+url+'" data-lightbox="'+i.id+'" data-idx="'+idx+'">🎬 '+esc(n)+'</a>'+dl+'</span>';
   }).join('')+'</div>';
   if(namen.length>1) h += '<button type="button" class="knop licht klein" data-dlalle="'+i.id+'" style="margin-top:6px">⬇ Alle '+namen.length+' bestanden downloaden</button>';
   return h;
 }
-function downloadBestand(naam){
+function dlNaam(naam, schadeId){
+  const id = String(schadeId||'').trim();
+  if(!id) return naam;
+  if(naam.indexOf(id+'_')===0) return naam;
+  return id+'_'+naam;
+}
+function downloadBestand(naam, schadeId){
+  const bestand = dlNaam(naam, schadeId);
   const a = document.createElement('a');
-  a.href = FOTO_BASE+encodeURIComponent(naam)+'?download='+encodeURIComponent(naam);
-  a.download = naam;
+  a.href = FOTO_BASE+encodeURIComponent(naam)+'?download='+encodeURIComponent(bestand);
+  a.download = bestand;
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
@@ -202,7 +209,7 @@ function downloadAlle(itemId){
   const namen = fotoLijst(i);
   if(!namen.length){ toast('Geen bestanden bij dit item'); return; }
   toast(namen.length+' bestanden worden gedownload…');
-  namen.forEach((n,idx)=>setTimeout(()=>downloadBestand(n), idx*400));
+  namen.forEach((n,idx)=>setTimeout(()=>downloadBestand(n, i.schade_id), idx*400));
 }
 function printRij(label,waarde){
   const v = (waarde==null || waarde==='') ? '—' : waarde;
@@ -284,7 +291,7 @@ function lbMediaHtml(naam){
   if(isAfbeelding(naam)) return '<img src="'+url+'" alt="'+esc(naam)+'">';
   return '<video src="'+url+'" controls autoplay></video>';
 }
-const LB = { items:[], idx:0 };
+const LB = { items:[], idx:0, sid:'' };
 function renderLightbox(){
   const stage=document.getElementById('lb-stage');
   const counter=document.getElementById('lb-counter');
@@ -297,21 +304,21 @@ function renderLightbox(){
   prev.style.display = meer?'flex':'none';
   next.style.display = meer?'flex':'none';
 }
-function openLightbox(items, idx){
-  LB.items = items; LB.idx = idx||0;
+function openLightbox(items, idx, sid){
+  LB.items = items; LB.idx = idx||0; LB.sid = sid||'';
   document.getElementById('lightbox').classList.add('open');
   renderLightbox();
 }
 function closeLightbox(){
   document.getElementById('lightbox').classList.remove('open');
   document.getElementById('lb-stage').innerHTML='';
-  LB.items=[]; LB.idx=0;
+  LB.items=[]; LB.idx=0; LB.sid='';
 }
 function lbPrev(){ if(!LB.items.length) return; LB.idx=(LB.idx-1+LB.items.length)%LB.items.length; renderLightbox(); }
 function lbNext(){ if(!LB.items.length) return; LB.idx=(LB.idx+1)%LB.items.length; renderLightbox(); }
 function initLightbox(){
   document.getElementById('lb-close').onclick=closeLightbox;
-  document.getElementById('lb-dl').onclick=()=>{ if(LB.items.length) downloadBestand(LB.items[LB.idx]); };
+  document.getElementById('lb-dl').onclick=()=>{ if(LB.items.length) downloadBestand(LB.items[LB.idx], LB.sid); };
   document.getElementById('lb-prev').onclick=lbPrev;
   document.getElementById('lb-next').onclick=lbNext;
   document.getElementById('lightbox').onclick=(e)=>{ if(e.target.id==='lightbox') closeLightbox(); };
@@ -645,7 +652,7 @@ function koppelItems(root){
   });
   root.querySelectorAll('[data-sluit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();S.open=null;S.meerOpen=null;render();});
   root.querySelectorAll('[data-print]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();printItem(+b.dataset.print);});
-  root.querySelectorAll('[data-dlfoto]').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();downloadBestand(b.dataset.dlfoto);});
+  root.querySelectorAll('[data-dlfoto]').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();downloadBestand(b.dataset.dlfoto, b.dataset.dlid);});
   root.querySelectorAll('[data-dlalle]').forEach(b=>b.onclick=(e)=>{e.preventDefault();e.stopPropagation();downloadAlle(+b.dataset.dlalle);});
   root.querySelectorAll('[data-fotoupload]').forEach(inp=>inp.onclick=(e)=>e.stopPropagation());
   root.querySelectorAll('[data-lightbox]').forEach(a=>a.onclick=(e)=>{
@@ -654,7 +661,7 @@ function koppelItems(root){
     const idx=+a.dataset.idx;
     const i=S.data.items.find(x=>x.id===itemId);
     if(!i) return;
-    openLightbox(fotoLijst(i), idx);
+    openLightbox(fotoLijst(i), idx, i.schade_id);
   });
   root.querySelectorAll('[data-fotoupload]').forEach(inp=>inp.onchange=async(e)=>{
     e.stopPropagation();
