@@ -223,7 +223,7 @@ function printItem(id){
   const namen = fotoLijst(i);
   const fotos = namen.filter(isAfbeelding);
   const overig = namen.filter(n=>!isAfbeelding(n));
-  const titel = 'Schade ' + String(i.schade_id||'') + ' - ' + String(i.locatie||'onbekende locatie');
+  const titel = String(i.schade_id||'schade');
   const nu = new Date();
   const gemaakt = ('0'+nu.getDate()).slice(-2)+'-'+('0'+(nu.getMonth()+1)).slice(-2)+'-'+nu.getFullYear();
 
@@ -337,13 +337,17 @@ async function api(body){
   const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(Object.assign({code:S.code,wie:S.wie},body))});
   if(r.status===401) throw {auth:true};
-  if(!r.ok) throw new Error('serverfout');
+  if(!r.ok){
+    let melding='';
+    try{ const j=await r.json(); melding=(j&&(j.fout||j.error||j.message))||''; }catch(err){}
+    throw new Error(melding||('serverfout '+r.status));
+  }
   return r.json();
 }
 async function laad(){ const j=await api({action:'state'}); S.data=j; }
 async function doe(actie, logtekst){
   try{ await api(Object.assign({},actie,{log:logtekst||''})); await laad(); render(); toast('Opgeslagen'); }
-  catch(e){ toast(e.auth?'Niet ingelogd':'Opslaan mislukt — check je verbinding'); }
+  catch(e){ toast(e.auth?'Niet ingelogd':('Opslaan mislukt: '+((e&&e.message)||'onbekende fout'))); }
 }
 function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('zien');
   setTimeout(()=>el.classList.remove('zien'),2200); }
@@ -691,7 +695,9 @@ function koppelItems(root){
     const item=document.querySelector('.item[data-id="'+id+'"]');
     const fields={};
     item.querySelectorAll('[data-veld]').forEach(inp=>{
-      const v = inp.type==='checkbox' ? inp.checked : inp.value;
+      let v = inp.type==='checkbox' ? inp.checked : inp.value;
+      // polis kent een vaste waardenlijst in de database: leeg moet als null, niet als lege tekst
+      if(inp.dataset.veld==='polis' && typeof v==='string' && v.trim()==='') v=null;
       fields[inp.dataset.veld]=v;
     });
     const i=S.data.items.find(x=>x.id===id);
