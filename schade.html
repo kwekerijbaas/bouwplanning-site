@@ -179,6 +179,81 @@ function fotoThumbs(i){
     return '<a class="vid-chip" href="'+url+'" data-lightbox="'+i.id+'" data-idx="'+idx+'">🎬 '+esc(n)+'</a>';
   }).join('')+'</div>';
 }
+function printRij(label,waarde){
+  const v = (waarde==null || waarde==='') ? '—' : waarde;
+  return '<tr><th>'+esc(label)+'</th><td>'+esc(v)+'</td></tr>';
+}
+function printItem(id){
+  const i = S.data.items.find(x=>x.id===id);
+  if(!i){ toast('Item niet gevonden'); return; }
+  const w = window.open('', '_blank');
+  if(!w){ toast('Sta pop-ups toe om de PDF te maken'); return; }
+  const namen = fotoLijst(i);
+  const fotos = namen.filter(isAfbeelding);
+  const overig = namen.filter(n=>!isAfbeelding(n));
+  const titel = 'Schade ' + String(i.schade_id||'') + ' - ' + String(i.locatie||'onbekende locatie');
+  const nu = new Date();
+  const gemaakt = ('0'+nu.getDate()).slice(-2)+'-'+('0'+(nu.getMonth()+1)).slice(-2)+'-'+nu.getFullYear();
+
+  let h = '<!doctype html><html lang="nl"><head><meta charset="utf-8"><title>'+esc(titel)+'</title><style>'
+    + '@page{size:A4;margin:14mm}'
+    + 'body{font-family:Arial,Helvetica,sans-serif;color:#1b2a24;font-size:12px;margin:0}'
+    + 'h1{font-size:17px;margin:0 0 2px;color:#1d4e8f}'
+    + '.sub{font-size:11px;color:#666;margin-bottom:12px}'
+    + '.balk{border-bottom:2px solid #1d4e8f;margin-bottom:10px;padding-bottom:8px}'
+    + 'table{width:100%;border-collapse:collapse;margin-bottom:12px}'
+    + 'th,td{border:1px solid #d8dee6;padding:5px 7px;text-align:left;vertical-align:top;font-size:12px}'
+    + 'th{background:#eef2f7;width:33%;font-weight:600;color:#33455c}'
+    + 'h2{font-size:13px;color:#1d4e8f;margin:14px 0 6px}'
+    + '.fotos{display:flex;flex-wrap:wrap;gap:8px}'
+    + '.fw{width:48%;page-break-inside:avoid;border:1px solid #d8dee6;padding:5px;box-sizing:border-box}'
+    + '.fw img{width:100%;height:auto;display:block}'
+    + '.fw .cap{font-size:9px;color:#777;margin-top:3px;word-break:break-all}'
+    + '.vt{font-size:11px;color:#444;margin:2px 0}'
+    + '.voet{margin-top:16px;padding-top:6px;border-top:1px solid #d8dee6;font-size:9.5px;color:#888}'
+    + '</style></head><body onload="window.print()">';
+
+  h += '<div class="balk"><h1>Schade-onderbouwing ' + esc(i.schade_id||'') + '</h1>'
+    + '<div class="sub">Kwekerij Baas - hagelschade 27/28-06-2026</div></div>';
+
+  h += '<table>'
+    + printRij('Schade-ID', i.schade_id)
+    + printRij('Datum melding', fmtD(i.datum))
+    + printRij('Locatie', i.locatie)
+    + printRij('Schadecategorie', i.schadecategorie)
+    + printRij('Polis', i.polis)
+    + printRij('Reparatie uitgevoerd door', i.uitgevoerd_door)
+    + printRij('Verhaalbaar op derden', i.verhaal_op_derden ? ('Ja' + (i.verhaal_bedrijf ? ' - ' + i.verhaal_bedrijf : '')) : 'Nee')
+    + printRij('Status', i.gereed ? 'Gereed / afgehandeld' : 'Open')
+    + '</table>';
+
+  h += '<h2>Omschrijving / duiding</h2><table><tr><td>'+esc(i.omschrijving||'—')+'</td></tr></table>';
+  if(i.opmerkingen) h += '<h2>Opmerkingen</h2><table><tr><td>'+esc(i.opmerkingen)+'</td></tr></table>';
+
+  h += '<h2>Foto-onderbouwing ('+fotos.length+' foto'+(fotos.length===1?'':'s')+')</h2>';
+  if(fotos.length){
+    h += '<div class="fotos">' + fotos.map(n=>{
+      const url = FOTO_BASE + encodeURIComponent(n);
+      return '<div class="fw"><img src="'+url+'"><div class="cap">'+esc(n)+'</div></div>';
+    }).join('') + '</div>';
+  } else {
+    h += '<div class="vt">Geen foto-onderbouwing beschikbaar bij dit item.</div>';
+  }
+  if(overig.length){
+    h += '<h2>Overige media (video, niet afdrukbaar)</h2>'
+      + overig.map(n=>'<div class="vt">- '+esc(n)+' : '+esc(FOTO_BASE+encodeURIComponent(n))+'</div>').join('');
+  }
+
+  h += '<div class="voet">Gegenereerd op '+esc(gemaakt)+' door '+esc(S.wie||'onbekend')
+    + ' - bron: schade-inventarisatie Kwekerij Baas (baaskwekerij.nl/schade.html)'
+    + ' - laatst gewijzigd door '+esc(i.laatst_gewijzigd_door||'—')
+    + (i.updated_at ? (' op '+esc(String(i.updated_at).slice(0,16).replace('T',' '))) : '')
+    + '</div>';
+
+  h += '</body></html>';
+  w.document.write(h);
+  w.document.close();
+}
 function lbMediaHtml(naam){
   const url = FOTO_BASE+encodeURIComponent(naam);
   if(isAfbeelding(naam)) return '<img src="'+url+'" alt="'+esc(naam)+'">';
@@ -374,7 +449,7 @@ function itemRow(i){
       +'<div data-verhaalblok="'+i.id+'" style="display:'+(i.verhaal_op_derden?'block':'none')+'">'+veldVerhaalBedrijf(i.verhaal_bedrijf,i.id)+'</div>'
       +'<label class="veld" style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;font-size:14px"><input type="checkbox" data-veld="gereed" '+(i.gereed?'checked':'')+' style="width:auto;transform:scale(1.3)"> <b>Gereed / afgehandeld</b></label>'
       +'<div class="stil" style="margin-top:8px">Datum: '+fmtD(i.datum)+' · Laatst gewijzigd door: '+esc(i.laatst_gewijzigd_door||'—')+(i.updated_at?(' · '+String(i.updated_at).slice(0,16).replace('T',' ')):'')+'</div>'
-      +'<div class="opslaan-rij"><button class="knop licht klein" data-sluit="1">Sluiten</button><button class="knop klein" data-opslaan="'+i.id+'">Opslaan</button></div>'
+      +'<div class="opslaan-rij"><button class="knop licht klein" data-sluit="1">Sluiten</button><button class="knop licht klein" data-print="'+i.id+'">PDF download</button><button class="knop klein" data-opslaan="'+i.id+'">Opslaan</button></div>'
       +'</div>';
   }
   return '<div class="item" data-id="'+i.id+'">'
@@ -517,6 +592,7 @@ function koppelItems(root){
     render();
   });
   root.querySelectorAll('[data-sluit]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();S.open=null;S.meerOpen=null;render();});
+  root.querySelectorAll('[data-print]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();printItem(+b.dataset.print);});
   root.querySelectorAll('[data-fotoupload]').forEach(inp=>inp.onclick=(e)=>e.stopPropagation());
   root.querySelectorAll('[data-lightbox]').forEach(a=>a.onclick=(e)=>{
     e.preventDefault(); e.stopPropagation();
