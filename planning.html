@@ -147,6 +147,10 @@ input[type=checkbox]{width:20px;height:20px;accent-color:var(--groen)}
 #login .fout{color:var(--rood);font-size:13px;display:none}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:120;max-width:90vw}
 #toast.zien{opacity:1}
+#feest{position:fixed;inset:0;z-index:140;background:rgba(27,42,36,.55);display:flex;align-items:center;justify-content:center;cursor:pointer}
+#feest canvas{position:absolute;inset:0}
+.feestkaart{position:relative;background:#fff;border-radius:16px;padding:28px 34px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.3);animation:feestpop .4s ease}
+@keyframes feestpop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
 #bezig{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:130;align-items:center;justify-content:center}
 .bezigkaart{background:#fff;border-radius:14px;padding:22px 26px;display:flex;flex-direction:column;align-items:center;gap:12px;font-size:14px;max-width:80vw;text-align:center}
 .spin{width:28px;height:28px;border:3px solid var(--lijn);border-top-color:var(--groen);border-radius:50%;animation:draai .8s linear infinite}
@@ -305,7 +309,23 @@ async function api(body){
   if(!r.ok){ let m='serverfout'; try{ const j=await r.json(); if(j&&j.fout) m=j.fout; }catch(x){} throw new Error(m); }
   return r.json();
 }
-async function laad(){ const j=await api({action:'state'}); S.data=j; }
+async function laad(){
+  // Welke afdelingen waren al helemaal gereed? Na het verversen vergelijken we,
+  // zodat het feestje precies één keer afgaat — ook als de melding van een ander
+  // apparaat komt (de 90s-verversing ziet hem dan ook).
+  const voor=S.data?gereedAfd():null;
+  const j=await api({action:'state'}); S.data=j;
+  if(voor){ for(const id of gereedAfd()) if(!voor.has(id)) vier(id); }
+}
+/* Afdelingen waarvan alle activiteiten (n.v.t. niet meegeteld) op klaar staan. */
+function gereedAfd(){
+  const uit=new Set();
+  for(const afd of S.data.afdelingen.filter(a=>a.actief)){
+    const acts=S.data.activiteiten.filter(z=>z.afdeling_id===afd.id&&z.status!=='nvt');
+    if(acts.length&&acts.every(z=>z.status==='klaar')) uit.add(afd.id);
+  }
+  return uit;
+}
 function actBasis(a){ return (a&&a.updated_at)?{basis_ts:a.updated_at}:{}; }
 async function doe(actie, logtekst){
   try{ await api(Object.assign({},actie,{log:logtekst||''})); await laad(); render(); }
@@ -316,6 +336,45 @@ async function doe(actie, logtekst){
 }
 function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('zien');
   setTimeout(()=>el.classList.remove('zien'),2600); }
+/* Feestje: een afdeling is helemaal gereed gemeld. Overlay met confetti,
+   sluit vanzelf na 8 seconden of met een tik. */
+function vier(afdId){
+  const afd=S.data.afdelingen.find(z=>z.id===afdId);
+  if(!afd||document.getElementById('feest')) return;
+  const n=S.data.activiteiten.filter(z=>z.afdeling_id===afdId&&z.status!=='nvt').length;
+  const el=document.createElement('div'); el.id='feest';
+  el.innerHTML='<canvas id="feest-c"></canvas><div class="feestkaart">'
+    +'<div style="font-size:56px">🎉</div>'
+    +'<div style="font-size:24px;font-weight:800">'+esc(afdNaam(afd))+' is GEREED!</div>'
+    +'<div class="stil" style="font-size:14px">Alle '+n+' activiteiten afgerond 💪</div>'
+    +'<div class="stil" style="font-size:12px;margin-top:10px">tik om te sluiten</div></div>';
+  document.body.appendChild(el);
+  const c=document.getElementById('feest-c');
+  c.width=Math.max(innerWidth,document.documentElement.clientWidth,360);
+  c.height=Math.max(innerHeight,document.documentElement.clientHeight,640);
+  const x=c.getContext('2d');
+  const KL=['#2d6a4f','#52b788','#f2a541','#e4572e','#17a398','#7768ae','#d1495b','#edae49'];
+  const dl=[];
+  for(let i=0;i<160;i++) dl.push({px:Math.random()*c.width, py:-20-Math.random()*c.height*0.5,
+    vx:(Math.random()-0.5)*2, vy:2+Math.random()*3, r:4+Math.random()*5,
+    kl:KL[i%KL.length], hoek:Math.random()*6.28, draai:(Math.random()-0.5)*0.25});
+  let stop=false;
+  (function stap(){
+    if(stop) return;
+    x.clearRect(0,0,c.width,c.height);
+    for(const d of dl){
+      d.px+=d.vx; d.py+=d.vy; d.hoek+=d.draai;
+      if(d.py>c.height+20){ d.py=-20; d.px=Math.random()*c.width; }
+      x.save(); x.translate(d.px,d.py); x.rotate(d.hoek);
+      x.fillStyle=d.kl; x.fillRect(-d.r,-d.r/2,d.r*2,d.r);
+      x.restore();
+    }
+    requestAnimationFrame(stap);
+  })();
+  const weg=()=>{ stop=true; el.remove(); };
+  el.onclick=weg;
+  setTimeout(weg,8000);
+}
 /* Werk dat even duurt: scherm op slot met een melding, zodat duidelijk is dat de app bezig is. */
 function bezig(tekst){
   let el=document.getElementById('bezig');
