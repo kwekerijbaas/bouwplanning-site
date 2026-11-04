@@ -8,19 +8,13 @@
   <title>Kwekerij Baas — apps</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B1%3C/text%3E%3C/svg%3E">
 
-  <!-- Doorsturen naar de planning:
-       1. Oude inloglinks (https://baaskwekerij.nl/#code of #code/Naam) stammen uit de tijd dat de
-          reparatieplanning op deze plek stond. Staat er een code achter de #, dan gaat die mee, zodat
-          bladwijzers en uitnodigingen blijven werken.
-       2. Wie op dit apparaat al is ingelogd bij de planning (de app bewaart dat in rp_code; dit is
-          hetzelfde domein) gaat direct door. Dat is de dagelijkse route van Jarno.
-       De startpagina is altijd bereikbaar via https://baaskwekerij.nl/?start -->
+  <!-- Doorsturen naar de planning: alleen oude inloglinks (https://baaskwekerij.nl/#code of #code/Naam)
+       stammen uit de tijd dat de reparatieplanning op deze plek stond. Staat er een code achter de #,
+       dan gaat die mee, zodat bladwijzers en uitnodigingen blijven werken. Wie zonder code komt ziet
+       altijd de startpagina (besluit Dieter 04-11-2026: ook Jarno), ook als hij al is ingelogd. -->
   <script>
     (function () {
-      if (location.search.indexOf("start") > -1) return;
-      var ingelogd = false;
-      try { ingelogd = !!localStorage.getItem("rp_code"); } catch (e) {}
-      if (location.hash.length > 1 || ingelogd) location.replace("/reparatieplanning/" + location.hash);
+      if (location.hash.length > 1) location.replace("/reparatieplanning/" + location.hash);
     })();
   </script>
 
@@ -157,7 +151,6 @@
 
 <footer>
   <p>Toegang aanvragen of aanpassen? Vraag het aan Dieter.</p>
-  <p>Wie al is ingelogd bij de Reparatieplanning gaat vanaf deze pagina direct door naar de planning. Deze startpagina blijft bereikbaar via baaskwekerij.nl/?start</p>
   <p>Techniek, Bonnen en UF starten na een rustige periode soms langzaam op (ongeveer een minuut).</p>
 </footer>
 
