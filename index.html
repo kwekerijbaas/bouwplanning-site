@@ -55,6 +55,10 @@
     h2 { margin: 0; font-size: 19px; font-weight: 500; line-height: 1.2; }
     .omschrijving { margin: 0; color: var(--grijs); }
 
+    a.app-kop { color: inherit; text-decoration: none; border-radius: 10px; margin: -6px; padding: 6px; }
+    a.app-kop:hover { background: #f1f5ea; }
+    a.app-kop:hover h2 { color: var(--donker-groen); text-decoration: underline; }
+    a.app-kop:focus-visible { outline: 3px solid var(--magenta); outline-offset: 2px; }
     .knop { display: block; text-align: center; text-decoration: none; background: var(--donker-groen); color: #fff; font-weight: 500; font-size: 17px; padding: 13px 16px; border-radius: 10px; min-height: 48px; }
     .knop.uit { background: #c9d0c4; color: #566159; cursor: default; }
     .knop.uit:hover { background: #c9d0c4; }
@@ -85,7 +89,7 @@
 
 <main>
   <h1>Onze apps</h1>
-  <p class="intro">Kies een app om in te loggen.</p>
+  <p class="intro">Tik op een app om in te loggen.</p>
 
   <!-- Namenlijst bijhouden: de toegang wordt in elke app zelf geregeld (zie toelichting per app in
        CLAUDE.md). Wijzigt daar iets, pas dan ook de namen hieronder aan. Alleen voornamen, nooit
@@ -93,9 +97,8 @@
   <ul class="apps">
 
     <li class="app">
-      <div class="app-kop"><span class="icoon" aria-hidden="true">🏗️</span><h2>Reparatieplanning hagelschade</h2></div>
+      <a class="app-kop" href="/reparatieplanning/" aria-label="Inloggen bij Reparatieplanning hagelschade"><span class="icoon" aria-hidden="true">🏗️</span><h2>Reparatieplanning hagelschade</h2></a>
       <p class="omschrijving">Planning van het kasherstel: afdelingen, activiteiten, leveringen en voortgang.</p>
-      <a class="knop" href="/reparatieplanning/" aria-label="Inloggen bij Reparatieplanning hagelschade">Inloggen</a>
       <p class="inlog">Met de gedeelde toegangscode</p>
       <p class="tip">Tip: sla <a href="/reparatieplanning/">baaskwekerij.nl/reparatieplanning</a> op in je favorieten (of zet hem op je beginscherm) om hier voortaan direct naartoe te gaan.</p>
       <div class="toegang">
@@ -105,9 +108,8 @@
     </li>
 
     <li class="app">
-      <div class="app-kop"><span class="icoon" aria-hidden="true">💬</span><h2>WhatsApp schadelijst</h2></div>
+      <a class="app-kop" href="/schade.html" aria-label="Inloggen bij WhatsApp schadelijst"><span class="icoon" aria-hidden="true">💬</span><h2>WhatsApp schadelijst</h2></a>
       <p class="omschrijving">Schade per afdeling vastleggen, met foto's en voortgang.</p>
-      <a class="knop" href="/schade.html" aria-label="Inloggen bij WhatsApp schadelijst">Inloggen</a>
       <p class="inlog">Met de gedeelde toegangscode</p>
       <div class="toegang">
         <h3>Wie heeft toegang</h3>
@@ -119,9 +121,8 @@
     </li>
 
     <li class="app">
-      <div class="app-kop"><span class="icoon" aria-hidden="true">✅</span><h2>Techniek akkoordlijst</h2></div>
+      <a class="app-kop" href="/techniek/" aria-label="Inloggen bij Techniek akkoordlijst"><span class="icoon" aria-hidden="true">✅</span><h2>Techniek akkoordlijst</h2></a>
       <p class="omschrijving">De akkoordlijst van Techniek.</p>
-      <a class="knop" href="/techniek/" aria-label="Inloggen bij Techniek akkoordlijst">Inloggen</a>
       <p class="inlog">Met een code per e-mail</p>
       <div class="toegang">
         <h3>Wie heeft toegang</h3>
@@ -130,9 +131,8 @@
     </li>
 
     <li class="app">
-      <div class="app-kop"><span class="icoon" aria-hidden="true">🧾</span><h2>Biomassa bonnen</h2></div>
+      <a class="app-kop" href="/biomassa/" aria-label="Inloggen bij Biomassa bonnen"><span class="icoon" aria-hidden="true">🧾</span><h2>Biomassa bonnen</h2></a>
       <p class="omschrijving">Biomassabonnen controleren.</p>
-      <a class="knop" href="/biomassa/" aria-label="Inloggen bij Biomassa bonnen">Inloggen</a>
       <p class="inlog">Met een code per e-mail</p>
       <div class="toegang">
         <h3>Wie heeft toegang</h3>
@@ -141,9 +141,8 @@
     </li>
 
     <li class="app">
-      <div class="app-kop"><span class="icoon" aria-hidden="true">🕒</span><h2>Uren uitzendkrachten</h2></div>
+      <a class="app-kop" href="/uf/" aria-label="Inloggen bij Uren uitzendkrachten"><span class="icoon" aria-hidden="true">🕒</span><h2>Uren uitzendkrachten</h2></a>
       <p class="omschrijving">Uren- en factuurcontrole van uitzendbureaus.</p>
-      <a class="knop" href="/uf/" aria-label="Inloggen bij Uren uitzendkrachten">Inloggen</a>
       <p class="inlog">Met een code per e-mail</p>
       <div class="toegang">
         <h3>Wie heeft toegang</h3>
@@ -152,9 +151,8 @@
     </li>
 
     <li class="app">
-      <div class="app-kop"><span class="icoon" aria-hidden="true">📄</span><h2>OfferteBaas</h2></div>
+      <a class="app-kop" href="https://kwekerij-baas.pages.dev" aria-label="Inloggen bij OfferteBaas"><span class="icoon" aria-hidden="true">📄</span><h2>OfferteBaas</h2></a>
       <p class="omschrijving">Offertes maken en versturen.</p>
-      <a class="knop" href="https://kwekerij-baas.pages.dev" aria-label="Inloggen bij OfferteBaas">Inloggen</a>
       <p class="inlog">Inloggen in de app zelf</p>
       <div class="toegang">
         <h3>Wie heeft toegang</h3>
@@ -163,9 +161,8 @@
     </li>
 
     <li class="app">
-      <div class="app-kop"><span class="icoon" aria-hidden="true">💶</span><h2>KostprijsBaas</h2></div>
+      <a class="app-kop" href="https://opzetafname.kwekerijbaas.nl/zakelijk" aria-label="Inloggen bij KostprijsBaas"><span class="icoon" aria-hidden="true">💶</span><h2>KostprijsBaas</h2></a>
       <p class="omschrijving">Kostprijzen en prijzen van artikelen berekenen.</p>
-      <a class="knop" href="https://opzetafname.kwekerijbaas.nl/zakelijk" aria-label="Inloggen bij KostprijsBaas">Inloggen</a>
       <p class="inlog">Met je Microsoft-werkaccount</p>
       <div class="toegang">
         <h3>Wie heeft toegang</h3>
@@ -174,9 +171,8 @@
     </li>
 
     <li class="app">
-      <div class="app-kop"><span class="icoon" aria-hidden="true">🧠</span><h2>BaasBrein</h2></div>
+      <a class="app-kop" href="https://baas-vraagomgeving.azurewebsites.net" aria-label="Inloggen bij BaasBrein"><span class="icoon" aria-hidden="true">🧠</span><h2>BaasBrein</h2></a>
       <p class="omschrijving">Vragen stellen over de financiële administratie.</p>
-      <a class="knop" href="https://baas-vraagomgeving.azurewebsites.net" aria-label="Inloggen bij BaasBrein">Inloggen</a>
       <p class="inlog">Met je Microsoft-werkaccount</p>
       <div class="toegang">
         <h3>Wie heeft toegang</h3>
