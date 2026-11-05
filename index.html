@@ -243,9 +243,7 @@
             snk.type = "button";
             snk.textContent = "Snelkoppeling voor je bureaublad";
             snk.onclick = function () {
-              var blob = new Blob(["[InternetShortcut]
-URL=" + url + "
-"], { type: "application/octet-stream" });
+              var blob = new Blob(["[InternetShortcut]\r\nURL=" + url + "\r\n"], { type: "application/octet-stream" });
               var l = document.createElement("a");
               l.href = URL.createObjectURL(blob);
               l.download = naam + ".url";
