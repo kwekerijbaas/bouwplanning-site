@@ -177,6 +177,7 @@ details.log .regel{font-size:12px;color:var(--grijs)}
       <button data-naam="Anders">Anders</button>
     </div>
     <button class="knop licht" id="lg-sluit" style="display:none">Annuleren</button>
+    <button class="knop licht" id="lg-uit" style="display:none">Uitloggen (terug naar alle apps)</button>
   </div>
 </div>
 <div id="topbar"><h1>🌱 Reparatieplanning hagelschade</h1><a class="apps" href="/?start">Alle apps</a><span class="wie" id="tb-wie"></span></div>
@@ -2583,6 +2584,8 @@ function toonLogin(){
   const sluit=document.getElementById('lg-sluit');
   sluit.style.display=S.data?'block':'none';
   sluit.onclick=()=>{ lg.style.display='none'; };
+  const uit=document.getElementById('lg-uit'); uit.style.display=S.data?'block':'none';
+  uit.onclick=()=>{ try{ localStorage.removeItem('rp_code'); localStorage.removeItem('rp_wie'); }catch(e){} location.href='/?start'; };
   lg.querySelectorAll('#lg-namen button').forEach(b=>b.onclick=async()=>{
     S.code=document.getElementById('lg-code').value.trim();
     S.wie=b.dataset.naam;
