@@ -56,6 +56,8 @@
     .omschrijving { margin: 0; color: var(--grijs); }
 
     .knop { display: block; text-align: center; text-decoration: none; background: var(--donker-groen); color: #fff; font-weight: 500; font-size: 17px; padding: 13px 16px; border-radius: 10px; min-height: 48px; }
+    .knop.uit { background: #c9d0c4; color: #566159; cursor: default; }
+    .knop.uit:hover { background: #c9d0c4; }
     .knop:hover { background: var(--donker-groen-hover); }
     .knop:focus-visible { outline: 3px solid var(--magenta); outline-offset: 2px; }
     .inlog { margin: -4px 0 0; color: var(--grijs); font-size: 15px; text-align: center; }
@@ -168,6 +170,17 @@
       <div class="toegang">
         <h3>Wie heeft toegang</h3>
         <ul class="namen"><li>Dieter</li><li>Django</li></ul>
+      </div>
+    </li>
+
+    <li class="app">
+      <div class="app-kop"><span class="icoon" aria-hidden="true">🧠</span><h2>BaasBrein</h2></div>
+      <p class="omschrijving">Vragen stellen over de financiële administratie.</p>
+      <span class="knop uit" aria-disabled="true">Link volgt</span>
+      <p class="inlog">Nog niet beschikbaar via deze pagina</p>
+      <div class="toegang">
+        <h3>Wie heeft toegang</h3>
+        <ul class="namen"><li>Dieter</li><li>Mariska</li><li>Marcus</li></ul>
       </div>
     </li>
 
