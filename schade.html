@@ -356,7 +356,8 @@ function fmtD(d){ if(!d) return '—'; const p=String(d).slice(0,10).split('-');
 
 const TABS=[['overzicht','Overzicht'],['items','Items'],['perbedrijf','Per bedrijf'],['logboek','Logboek']];
 function render(){
-  document.getElementById('tb-wie').textContent=S.wie;
+  const tw=document.getElementById('tb-wie'); tw.textContent=S.wie+' · Uitloggen'; tw.style.cursor='pointer';
+  tw.onclick=()=>{ try{ localStorage.removeItem('si_code'); localStorage.removeItem('si_wie'); }catch(e){} location.href='/'; };
   renderBedrijvenDatalist();
   renderSchadecategorieDatalist();
   const tabs=document.getElementById('tabs');
