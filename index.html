@@ -59,6 +59,20 @@
     a.app-kop:hover { background: #f1f5ea; }
     a.app-kop:hover h2 { color: var(--donker-groen); text-decoration: underline; }
     a.app-kop:focus-visible { outline: 3px solid var(--magenta); outline-offset: 2px; }
+    .app { position: relative; }
+    a.app-kop::after { content: ""; position: absolute; inset: 0; border-radius: 14px; }
+    .app:hover { border-color: var(--donker-groen); box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+    .app:focus-within { border-color: var(--donker-groen); }
+    a.app-kop:hover { background: transparent; }
+    .opslaan { position: relative; z-index: 1; margin-top: auto; }
+    .opslaan summary { cursor: pointer; color: var(--donker-groen); font-weight: 500; list-style: none; display: inline-block; padding: 4px 0; }
+    .opslaan summary::-webkit-details-marker { display: none; }
+    .opslaan summary:hover { text-decoration: underline; }
+    .opslaan[open] summary { margin-bottom: 6px; }
+    .opslaan .uitleg { margin: 0 0 8px; color: var(--grijs); }
+    .opslaan button { font: inherit; font-weight: 500; color: var(--donker-groen); background: #fff; border: 1px solid var(--donker-groen); border-radius: 8px; padding: 8px 12px; margin: 0 6px 6px 0; min-height: 40px; cursor: pointer; }
+    .opslaan button:hover { background: #f1f5ea; }
+    .opslaan .klaar { color: var(--donker-groen); font-weight: 500; }
     .knop { display: block; text-align: center; text-decoration: none; background: var(--donker-groen); color: #fff; font-weight: 500; font-size: 17px; padding: 13px 16px; border-radius: 10px; min-height: 48px; }
     .knop.uit { background: #c9d0c4; color: #566159; cursor: default; }
     .knop.uit:hover { background: #c9d0c4; }
@@ -66,8 +80,6 @@
     .knop:focus-visible { outline: 3px solid var(--magenta); outline-offset: 2px; }
     .inlog { margin: 0; color: var(--grijs); font-size: 15px; }
 
-    .tip { margin: 0; color: var(--grijs); font-size: 15px; }
-    .tip a { color: var(--donker-groen); }
     .toegang { border-top: 1px solid var(--lijn); padding-top: 12px; }
     .toegang h3 { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--magenta); letter-spacing: .02em; }
     .namen { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; list-style: none; }
@@ -100,7 +112,6 @@
       <a class="app-kop" href="/reparatieplanning/" aria-label="Inloggen bij Reparatieplanning hagelschade"><span class="icoon" aria-hidden="true">🏗️</span><h2>Reparatieplanning hagelschade</h2></a>
       <p class="omschrijving">Planning van het kasherstel: afdelingen, activiteiten, leveringen en voortgang.</p>
       <p class="inlog">Met de gedeelde toegangscode</p>
-      <p class="tip">Tip: sla <a href="/reparatieplanning/">baaskwekerij.nl/reparatieplanning</a> op in je favorieten (of zet hem op je beginscherm) om hier voortaan direct naartoe te gaan.</p>
       <div class="toegang">
         <h3>Wie heeft toegang</h3>
         <ul class="namen"><li>Jarno</li><li>Dieter</li><li>Jeroen</li><li>Jacob</li></ul>
@@ -187,6 +198,68 @@
   <p>Toegang aanvragen of aanpassen? Vraag het aan Dieter.</p>
   <p>Techniek, Biomassa bonnen en Uren uitzendkrachten starten na een rustige periode soms langzaam op (ongeveer een minuut).</p>
 </footer>
+
+  <script>
+    /* Per app een uitklapper "Opslaan": link kopieren, bureaubladsnelkoppeling (Windows) en uitleg voor favorieten / beginscherm. */
+    (function () {
+      var ua = navigator.userAgent || "";
+      var ios = /iPhone|iPad|iPod/.test(ua);
+      var android = /Android/.test(ua);
+      var windows = /Windows/.test(ua);
+      var mac = /Mac/.test(ua) && !ios;
+      function uitleg() {
+        if (ios) return "Favoriet of beginscherm: tik in Safari op de deelknop en kies Zet op beginscherm of Voeg toe aan favorieten.";
+        if (android) return "Favoriet of beginscherm: tik in je browser op het menu (drie puntjes) en kies Toevoegen aan startscherm of de ster voor een favoriet.";
+        return "Favoriet: open de app en druk op " + (mac ? "Cmd+D" : "Ctrl+D") + ".";
+      }
+      var lijst = document.querySelectorAll("li.app");
+      for (var i = 0; i < lijst.length; i++) {
+        (function (li) {
+          var a = li.querySelector("a.app-kop");
+          if (!a) return;
+          var url = new URL(a.getAttribute("href"), location.origin).href;
+          var naam = (li.querySelector("h2") || {}).textContent || "App";
+          var d = document.createElement("details");
+          d.className = "opslaan";
+          var sm = document.createElement("summary");
+          sm.textContent = "Opslaan als favoriet of snelkoppeling";
+          d.appendChild(sm);
+          var p = document.createElement("p");
+          p.className = "uitleg";
+          p.textContent = uitleg();
+          d.appendChild(p);
+          var kopie = document.createElement("button");
+          kopie.type = "button";
+          kopie.textContent = "Link kopieren";
+          kopie.onclick = function () {
+            function klaar() { kopie.textContent = "Gekopieerd"; }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(url).then(klaar, function () { window.prompt("Kopieer deze link:", url); });
+            } else { window.prompt("Kopieer deze link:", url); }
+          };
+          d.appendChild(kopie);
+          if (windows) {
+            var snk = document.createElement("button");
+            snk.type = "button";
+            snk.textContent = "Snelkoppeling voor je bureaublad";
+            snk.onclick = function () {
+              var blob = new Blob(["[InternetShortcut]
+URL=" + url + "
+"], { type: "application/octet-stream" });
+              var l = document.createElement("a");
+              l.href = URL.createObjectURL(blob);
+              l.download = naam + ".url";
+              document.body.appendChild(l); l.click(); document.body.removeChild(l);
+              setTimeout(function () { URL.revokeObjectURL(l.href); }, 1000);
+              p.textContent = "Het bestand staat in je downloads. Sleep het naar je bureaublad.";
+            };
+            d.appendChild(snk);
+          }
+          li.appendChild(d);
+        })(lijst[i]);
+      }
+    })();
+  </script>
 
 </body>
 </html>
